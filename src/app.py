@@ -17,34 +17,9 @@ from langgraph.prebuilt import ToolNode, tools_condition
 
 import serpapi
 
+from util import _extract_excerpt_from_markdown, _extract_title_from_markdown
+
 load_dotenv()
-
-
-def _extract_title_from_markdown(document: str) -> str:
-    for line in document.splitlines():
-        cleaned_line = line.strip()
-        if cleaned_line.startswith("#"):
-            return cleaned_line.lstrip("#").strip()
-    return ""
-
-
-def _extract_excerpt_from_markdown(document: str, max_length: int = 400) -> str:
-    lines = []
-    for line in document.splitlines():
-        cleaned_line = line.strip()
-        if not cleaned_line:
-            continue
-        if cleaned_line.startswith("#"):
-            continue
-        if cleaned_line.startswith("<!--") and cleaned_line.endswith("-->"):
-            continue
-        lines.append(cleaned_line)
-
-    excerpt = " ".join(lines)
-    if len(excerpt) <= max_length:
-        return excerpt
-
-    return excerpt[: max_length - 3].rstrip() + "..."
 
 
 @tool("current_date")
@@ -52,29 +27,6 @@ def current_date() -> str:
     """Retorna a data e hora atual no formato YYYY-MM-DD H:i:s"""
     tz = ZoneInfo("America/Rio_Branco")
     return datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S")
-
-
-@tool("buscar_cep")
-def buscar_cep(cep: str) -> str:
-    """Busca informações de endereço com base no CEP usando a API ViaCEP."""
-
-    url = f"https://viacep.com.br/ws/{cep}/json/"
-
-    try:
-        resp = requests.get(url, timeout=5)
-        resp.raise_for_status()
-        data = resp.json()
-
-        if "erro" in data:
-            return json5.dumps({"erro": "CEP não encontrado"}, ensure_ascii=False)
-
-        return json5.dumps(data, ensure_ascii=False)
-
-    except requests.exceptions.RequestException as e:
-        return json5.dumps(
-            {"erro": f"Falha ao buscar o CEP: {str(e)}"},
-            ensure_ascii=False
-        )
 
 
 @tool('get_links')
@@ -307,7 +259,7 @@ def fetch_url(url: str) -> str:
     )
 
 
-tools = [current_date, buscar_cep, get_links, fetch_url]
+tools = [current_date, get_links, fetch_url]
 
 model = ChatOpenAI(
     model=os.getenv("VLLM_MODEL", os.getenv("LOCAL_MODEL")),
@@ -320,50 +272,34 @@ model = ChatOpenAI(
 model_with_tools = model.bind_tools(tools)
 
 
-# Estado compartilhado do grafo: uma lista acumulada de mensagens.
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
 
 
 def call_model(state: AgentState):
-    # Prompt de sistema fixo para orientar o comportamento do agente.
     system_prompt = {
         "role": "system",
         "content": (
             "Você é um agente de pesquisa e apoio. Responda sempre em Português do Brasil. "
-            "Quando a pergunta depender de informações atuais, fatos verificáveis, fontes externas "
-            "ou pesquisa na web, você deve primeiro usar a tool `get_links` para encontrar fontes "
-            "candidatas. Depois disso, escolha as URLs mais relevantes e use a tool `fetch_url` para "
-            "ler o conteúdo real das páginas antes de responder. Não trate snippets de busca como "
-            "evidência suficiente quando a qualidade da resposta depender do conteúdo da fonte. "
-            "Você não precisa abrir todos os links: escolha quantos forem necessários para responder "
-            "bem. Sempre que usar pesquisa web, informe claramente as fontes efetivamente consultadas "
-            "na resposta final. Se a pergunta puder ser respondida com segurança usando apenas as tools "
-            "locais, como `current_date` ou `buscar_cep`, use apenas o necessário."
+            "Você deve fazer buscas se uma informação é verdadeira ou falsa."
+            "Use a ferramenta de get_links para buscar no Google e a fetch_url para acessar 3 links importantes"
+            "Gere um relatório para o usuário, citando as fontes e um veredito se é Fake ou Verdadeiro"
         )
     }
 
-    # O LangGraph mantém o histórico; aqui apenas adicionamos a instrução inicial.
     messages = [system_prompt] + state["messages"]
-
-    # O modelo decide se responde diretamente ou se pede execução de alguma tool.
     response = model_with_tools.invoke(messages)
 
     return {"messages": [response]}
 
 
-# Monta o fluxo do agente como um grafo de estados.
 graph_builder = StateGraph(AgentState)
 
-# Nó que conversa com o modelo.
 graph_builder.add_node("agent", call_model)
-# Nó responsável por executar as tools solicitadas pelo modelo.
 graph_builder.add_node("tools", ToolNode(tools))
 
-# Toda execução começa no nó do agente.
 graph_builder.add_edge(START, "agent")
 
-# Se o modelo pedir tool, vai para o nó "tools"; caso contrário, encerra.
 graph_builder.add_conditional_edges(
     "agent",
     tools_condition,
@@ -373,18 +309,13 @@ graph_builder.add_conditional_edges(
     }
 )
 
-# Depois de executar a tool, o resultado volta para o agente continuar a resposta.
 graph_builder.add_edge("tools", "agent")
-
-# Compila o fluxo para execução.
 graph = graph_builder.compile()
 
 
-# Loop interativo simples em terminal.
 while True:
     user_input = input("Enter your query: ")
 
-    # Executa o grafo em streaming, emitindo atualizações de cada etapa.
     for chunk in graph.stream(
         {"messages": [{"role": "user", "content": user_input}]},
         stream_mode="updates",
@@ -394,7 +325,6 @@ while True:
 
             last_message = data["messages"][-1]
 
-            # Alguns retornos expõem blocos estruturados; outros, apenas texto.
             if hasattr(last_message, "content_blocks"):
                 print(f"content: {last_message.content_blocks}")
             else:
