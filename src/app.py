@@ -141,7 +141,7 @@ def fetch_url(url: str) -> str:
             submit_url,
             data=payload,
             headers=headers,
-            timeout=30,
+            timeout=60,
         )
         submit_response.raise_for_status()
         submit_data = submit_response.json()
@@ -228,7 +228,6 @@ def fetch_url(url: str) -> str:
                     "excerpt": excerpt,
                     "content_length": len(document),
                     "document": document,
-                    "chunks": result.get("chunks", []),
                     "source_type": "docling",
                 },
                 ensure_ascii=False
@@ -266,7 +265,7 @@ model = ChatOpenAI(
     base_url=os.getenv("VLLM_BASE_URL", os.getenv("PROVIDER_URL")),
     api_key=os.getenv("VLLM_API_KEY", os.getenv("PROVIDER_API_KEY")),
     temperature=0.2,
-    timeout=30,
+    timeout=120,
 )
 
 model_with_tools = model.bind_tools(tools)
@@ -277,14 +276,16 @@ class AgentState(TypedDict):
 
 
 def call_model(state: AgentState):
+    system_prompt_text = os.getenv("SYSTEM_PROMPT", "")
+    prompt_file = os.getenv("SYSTEM_PROMPT_FILE")
+
+    if prompt_file:
+        with open(prompt_file, "r", encoding="utf-8") as f:
+            system_prompt_text = f.read()
+
     system_prompt = {
         "role": "system",
-        "content": (
-            "Você é um agente de pesquisa e apoio. Responda sempre em Português do Brasil. "
-            "Você deve fazer buscas se uma informação é verdadeira ou falsa."
-            "Use a ferramenta de get_links para buscar no Google e a fetch_url para acessar 3 links importantes"
-            "Gere um relatório para o usuário, citando as fontes e um veredito se é Fake ou Verdadeiro"
-        )
+        "content": system_prompt_text
     }
 
     messages = [system_prompt] + state["messages"]
