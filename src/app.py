@@ -1,86 +1,151 @@
-import os
-from dotenv import load_dotenv
+from typing import Annotated, Literal, TypedDict
+import operator
 
-from typing import Annotated, TypedDict
+from langchain.agents import create_agent
 
-from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.types import Send
 
-from tools import tools
+from llms import agent_llm, router_llm
+from tools.fetch_url import fetch_url
+from tools.get_links import get_links
 
-load_dotenv()
 
-model = ChatOpenAI(
-    model=os.getenv("VLLM_MODEL", os.getenv("LOCAL_MODEL")),
-    base_url=os.getenv("VLLM_BASE_URL", os.getenv("PROVIDER_URL")),
-    api_key=os.getenv("VLLM_API_KEY", os.getenv("PROVIDER_API_KEY")),
-    temperature=0.2,
-    timeout=120,
+class AgentInput(TypedDict):
+    """Simple input state for each subagent."""
+    query: str
+
+
+class AgentOutput(TypedDict):
+    """Output from each subagent."""
+    source: str
+    result: str
+
+
+class Classification(TypedDict):
+    """A single routing decision: which agent to call with what query."""
+    source: Literal["search_agent", ]
+    query: str
+
+
+class RouterState(TypedDict):
+    query: str
+    classifications: list[Classification]
+    results: Annotated[list[AgentOutput], operator.add]  # Reducer collects parallel results
+    final_answer: str
+
+
+search_agent = create_agent(
+    agent_llm,
+    tools=[get_links, fetch_url],
+    system_prompt=(
+        "Você é um especialista em buscar online se uma informação é FALSA ou VERDADEIRA"
+        "Sempre use ferramentas que te auxiliem a buscar informações atualizadas "
+        "para saber se alguma questão é VERDADEIRA ou FALSA"
+    ),
 )
 
-model_with_tools = model.bind_tools(tools)
+
+# Define structured output schema for the classifier
+class ClassificationResult(BaseModel):
+    """Result of classifying a user query into agent-specific sub-questions."""
+    classifications: list[Classification] = Field(
+        description="List of agents to invoke with their targeted sub-questions"
+    )
 
 
-class AgentState(TypedDict):
-    messages: Annotated[list, add_messages]
+def classify_query(state: RouterState) -> dict:
+    """Classify query and determine which agents to invoke."""
+    structured_llm = router_llm.with_structured_output(ClassificationResult)
+
+    result = structured_llm.invoke([
+        {
+            "role": "system",
+            "content": """Analyze this query and determine which knowledge bases to consult.
+            For each relevant source, generate a targeted sub-question optimized for that source.
+            Available sources:
+            - search_agent : Search online about some information if it is TRUE or FALSE
+            Return ONLY the sources that are relevant to the query. Each source should have
+            a targeted sub-question optimized for that specific knowledge domain."""
+
+        },
+        {"role": "user", "content": state["query"]}
+    ])
+
+    return {"classifications": result.classifications}
 
 
-def call_model(state: AgentState):
-    system_prompt_text = os.getenv("SYSTEM_PROMPT", "")
-    prompt_file = os.getenv("SYSTEM_PROMPT_FILE")
-
-    if prompt_file:
-        with open(prompt_file, "r", encoding="utf-8") as f:
-            system_prompt_text = f.read()
-
-    system_prompt = {
-        "role": "system",
-        "content": system_prompt_text
-    }
-
-    messages = [system_prompt] + state["messages"]
-    response = model_with_tools.invoke(messages)
-
-    return {"messages": [response]}
+def route_to_agents(state: RouterState) -> list[Send]:
+    """Fan out to agents based on classifications."""
+    return [
+        Send(c["source"], {"query": c["query"]})
+        for c in state["classifications"]
+    ]
 
 
-graph_builder = StateGraph(AgentState)
+def query_search(state: AgentInput) -> dict:
+    """Query the Search Agent."""
+    result = search_agent.invoke({
+        "messages": [{"role": "user", "content": state["query"]}]
+    })
+    return {"results": [{"source": "search_agent", "result": result["messages"][-1].content}]}
 
-graph_builder.add_node("agent", call_model)
-graph_builder.add_node("tools", ToolNode(tools))
 
-graph_builder.add_edge(START, "agent")
+def synthesize_results(state: RouterState) -> dict:
+    """Combine results from all agents into a coherent answer."""
+    if not state["results"]:
+        return {"final_answer": "No results found from any knowledge source."}
 
-graph_builder.add_conditional_edges(
-    "agent",
-    tools_condition,
-    {
-        "tools": "tools",
-        END: END,
-    }
+    # Format results for synthesis
+    formatted = [
+        f"**From {r['source'].title()}:**\n{r['result']}"
+        for r in state["results"]
+    ]
+
+    synthesis_response = router_llm.invoke([
+        {
+            "role": "system",
+            "content": f"""Gere a resposta final para a pergunta original: "{state['query']}"
+
+Use exclusivamente os resultados fornecidos pelos agentes.
+Não realize nova apuração.
+Não acrescente fatos, fontes, links ou conclusões que não estejam nos resultados recebidos.
+Se os resultados dos agentes forem insuficientes, indique essa limitação claramente.
+Combine as informações sem redundância, preservando evidências, fontes e limitações apresentadas pelos agentes."""
+        },
+        {"role": "user", "content": "\n\n".join(formatted)}
+    ])
+
+    return {"final_answer": synthesis_response.content}
+
+
+workflow = (
+    StateGraph(RouterState)
+    .add_node("classify", classify_query)
+    .add_node("search_agent", query_search)
+    .add_node("synthesize", synthesize_results)
+    .add_edge(START, "classify")
+    .add_conditional_edges("classify", route_to_agents, ["search_agent",])
+    .add_edge("search_agent", "synthesize")
+    .add_edge("synthesize", END)
+    .compile()
 )
 
-graph_builder.add_edge("tools", "agent")
-graph = graph_builder.compile()
+result = workflow.invoke({
+    "query": "É verdade que a Pfizer listou infecção por hantavírus como efeito colateral de vacina contra Covid-19?"
+})
 
-
-while True:
-    user_input = input("Enter your query: ")
-
-    for chunk in graph.stream(
-        {"messages": [{"role": "user", "content": user_input}]},
-        stream_mode="updates",
-    ):
-        for step, data in chunk.items():
-            print(f"step: {step}")
-
-            last_message = data["messages"][-1]
-
-            if hasattr(last_message, "content_blocks"):
-                print(f"content: {last_message.content_blocks}")
-            else:
-                print(f"content: {last_message.content}")
-
-            print("-----")
+print("Original query:", result["query"])
+print("\nClassifications:")
+for c in result["classifications"]:
+    print(f"  {c['source']}: {c['query']}")
+print("\n" + "=" * 60 + "\n")
+print("Agent Results:")
+for r in result["results"]:
+    print(f"\nSource: {r['source']}")
+    print("Result:")
+    print(r["result"])
+print("\n" + "=" * 60 + "\n")
+print("Final Answer:")
+print(result["final_answer"])
