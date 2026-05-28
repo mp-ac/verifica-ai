@@ -7,7 +7,9 @@ from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send
 
+from util import load_system_prompt
 from llms import agent_llm, router_llm
+from tools.current_date import current_date
 from tools.fetch_url import fetch_url
 from tools.get_links import get_links
 
@@ -38,12 +40,8 @@ class RouterState(TypedDict):
 
 search_agent = create_agent(
     agent_llm,
-    tools=[get_links, fetch_url],
-    system_prompt=(
-        "Você é um especialista em buscar online se uma informação é FALSA ou VERDADEIRA"
-        "Sempre use ferramentas que te auxiliem a buscar informações atualizadas "
-        "para saber se alguma questão é VERDADEIRA ou FALSA"
-    ),
+    tools=[current_date, get_links, fetch_url],
+    system_prompt=load_system_prompt(),
 )
 
 

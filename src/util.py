@@ -1,3 +1,9 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 def _extract_title_from_markdown(document: str) -> str:
     for line in document.splitlines():
         cleaned_line = line.strip()
@@ -23,3 +29,13 @@ def _extract_excerpt_from_markdown(document: str, max_length: int = 400) -> str:
         return excerpt
 
     return excerpt[: max_length - 3].rstrip() + "..."
+
+
+def load_system_prompt() -> str:
+    prompt_file = os.getenv("SYSTEM_PROMPT_FILE")
+
+    if prompt_file:
+        with open(prompt_file, "r", encoding="utf-8") as f:
+            return f.read()
+
+    return None
