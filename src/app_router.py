@@ -126,11 +126,13 @@ def synthesize_results(state: RouterState) -> dict:
     synthesis_response = router_llm.invoke([
         {
             "role": "system",
-            "content": f"""Synthesize these search results to answer the original question: "{state['query']}"
-            - Combine information from multiple sources without redundancy
-            - Highlight the most relevant and actionable information
-            - Note any discrepancies between sources
-            - Keep the response concise and well-organized"""
+            "content": f"""Gere a resposta final para a pergunta original: "{state['query']}"
+
+Use exclusivamente os resultados fornecidos pelos agentes.
+Não realize nova apuração.
+Não acrescente fatos, fontes, links ou conclusões que não estejam nos resultados recebidos.
+Se os resultados dos agentes forem insuficientes, indique essa limitação claramente.
+Combine as informações sem redundância, preservando evidências, fontes e limitações apresentadas pelos agentes."""
         },
         {"role": "user", "content": "\n\n".join(formatted)}
     ])
@@ -158,6 +160,12 @@ print("Original query:", result["query"])
 print("\nClassifications:")
 for c in result["classifications"]:
     print(f"  {c['source']}: {c['query']}")
+print("\n" + "=" * 60 + "\n")
+print("Agent Results:")
+for r in result["results"]:
+    print(f"\nSource: {r['source']}")
+    print("Result:")
+    print(r["result"])
 print("\n" + "=" * 60 + "\n")
 print("Final Answer:")
 print(result["final_answer"])
