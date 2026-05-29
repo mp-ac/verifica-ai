@@ -1,25 +1,12 @@
-from langchain.agents import create_agent
-
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send
 
+from agents.search_agent import query_search
 from graph.state import (
-    AgentInput,
     ClassificationResult,
     RouterState,
 )
-from util import load_system_prompt
-from llms import agent_llm, router_llm
-from tools.current_date import current_date
-from tools.fetch_url import fetch_url
-from tools.get_links import get_links
-
-
-search_agent = create_agent(
-    agent_llm,
-    tools=[current_date, get_links, fetch_url],
-    system_prompt=load_system_prompt(),
-)
+from llms import router_llm
 
 
 def classify_query(state: RouterState) -> dict:
@@ -49,14 +36,6 @@ def route_to_agents(state: RouterState) -> list[Send]:
         Send(c["source"], {"query": c["query"]})
         for c in state["classifications"]
     ]
-
-
-def query_search(state: AgentInput) -> dict:
-    """Query the Search Agent."""
-    result = search_agent.invoke({
-        "messages": [{"role": "user", "content": state["query"]}]
-    })
-    return {"results": [{"source": "search_agent", "result": result["messages"][-1].content}]}
 
 
 def synthesize_results(state: RouterState) -> dict:
