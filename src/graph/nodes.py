@@ -17,7 +17,13 @@ def classify_query(state: RouterState) -> dict:
         {"role": "user", "content": state["query"]}
     ])
 
-    return {"classifications": result.classifications}
+    return {
+        "classifications": result.classifications,
+        "debug_events": [
+            f"Router interpretou a pergunta original: {state['query']}",
+            f"Router decidiu as rotas: {[c['source'] for c in result.classifications]}",
+        ],
+    }
 
 
 def route_to_agents(state: RouterState) -> list[Send]:
@@ -31,7 +37,10 @@ def route_to_agents(state: RouterState) -> list[Send]:
 def synthesize_results(state: RouterState) -> dict:
     """Combine results from all agents into a coherent answer."""
     if not state["results"]:
-        return {"final_answer": "No results found from any knowledge source."}
+        return {
+            "final_answer": "No results found from any knowledge source.",
+            "debug_events": ["Nenhum resultado foi devolvido pelos agentes."],
+        }
 
     formatted = [
         f"**From {r['source'].title()}:**\n{r['result']}"
@@ -41,15 +50,14 @@ def synthesize_results(state: RouterState) -> dict:
     synthesis_response = router_llm.invoke([
         {
             "role": "system",
-            "content": f"""Gere a resposta final para a pergunta original: "{state['query']}"
-            Use exclusivamente os resultados fornecidos pelos agentes.
-            Não realize nova apuração.
-            Não acrescente fatos, fontes, links ou conclusões que não estejam nos resultados recebidos.
-            Se os resultados dos agentes forem insuficientes, indique essa limitação claramente.
-            Combine as informações sem redundância, preservando evidências,
-            fontes e limitações apresentadas pelos agentes."""
+            "content": load_prompt("prompts/router_synthesis_prompt.md").format(
+                query=state["query"]
+            )
         },
         {"role": "user", "content": "\n\n".join(formatted)}
     ])
 
-    return {"final_answer": synthesis_response.content}
+    return {
+        "final_answer": synthesis_response.content,
+        "debug_events": ["Router sintetizou a resposta final a partir dos resultados do agente."],
+    }
