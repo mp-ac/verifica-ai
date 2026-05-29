@@ -4,38 +4,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-def _extract_title_from_markdown(document: str) -> str:
-    for line in document.splitlines():
-        cleaned_line = line.strip()
-        if cleaned_line.startswith("#"):
-            return cleaned_line.lstrip("#").strip()
-    return ""
-
-
-def _extract_excerpt_from_markdown(document: str, max_length: int = 400) -> str:
-    lines = []
-    for line in document.splitlines():
-        cleaned_line = line.strip()
-        if not cleaned_line:
-            continue
-        if cleaned_line.startswith("#"):
-            continue
-        if cleaned_line.startswith("<!--") and cleaned_line.endswith("-->"):
-            continue
-        lines.append(cleaned_line)
-
-    excerpt = " ".join(lines)
-    if len(excerpt) <= max_length:
-        return excerpt
-
-    return excerpt[: max_length - 3].rstrip() + "..."
-
-
 def load_system_prompt() -> str:
+    """Load the main system prompt from the file configured in the environment."""
     prompt_file = os.getenv("SYSTEM_PROMPT_FILE")
 
     if prompt_file:
-        with open(prompt_file, "r", encoding="utf-8") as f:
-            return f.read()
+        return load_prompt(prompt_file)
 
     return None
+
+
+def load_prompt(prompt_file: str) -> str:
+    """Read and return the full contents of a prompt file."""
+    with open(prompt_file, "r", encoding="utf-8") as f:
+        return f.read()
