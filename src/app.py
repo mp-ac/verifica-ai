@@ -1,12 +1,13 @@
-from typing import Annotated, Literal, TypedDict
-import operator
-
 from langchain.agents import create_agent
 
-from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import Send
 
+from graph.state import (
+    AgentInput,
+    ClassificationResult,
+    RouterState,
+)
 from util import load_system_prompt
 from llms import agent_llm, router_llm
 from tools.current_date import current_date
@@ -14,43 +15,11 @@ from tools.fetch_url import fetch_url
 from tools.get_links import get_links
 
 
-class AgentInput(TypedDict):
-    """Simple input state for each subagent."""
-    query: str
-
-
-class AgentOutput(TypedDict):
-    """Output from each subagent."""
-    source: str
-    result: str
-
-
-class Classification(TypedDict):
-    """A single routing decision: which agent to call with what query."""
-    source: Literal["search_agent", ]
-    query: str
-
-
-class RouterState(TypedDict):
-    query: str
-    classifications: list[Classification]
-    results: Annotated[list[AgentOutput], operator.add]  # Reducer collects parallel results
-    final_answer: str
-
-
 search_agent = create_agent(
     agent_llm,
     tools=[current_date, get_links, fetch_url],
     system_prompt=load_system_prompt(),
 )
-
-
-# Define structured output schema for the classifier
-class ClassificationResult(BaseModel):
-    """Result of classifying a user query into agent-specific sub-questions."""
-    classifications: list[Classification] = Field(
-        description="List of agents to invoke with their targeted sub-questions"
-    )
 
 
 def classify_query(state: RouterState) -> dict:
