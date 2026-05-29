@@ -131,8 +131,10 @@ workflow = (
 )
 
 result = workflow.invoke({
-    "query": "É verdade que a Pfizer listou infecção por hantavírus como efeito colateral de vacina contra Covid-19?"
+    "query": input("O que você quer procurar? ")
 })
+
+print("\n\n" + "-" * 80 + "\n\n")
 
 print("Original query:", result["query"])
 print("\nClassifications:")
