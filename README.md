@@ -123,6 +123,26 @@ Essa abordagem favorece a transparência, permite auditoria pública, estimula c
 7. A decisão final é registrada.
 8. O cidadão recebe a resposta da verificação.
 
+## Organização do código
+
+Atualmente, o código do projeto está organizado para separar melhor as responsabilidades entre entrada da aplicação, fluxo do router, agentes, ferramentas e utilitários.
+
+### Estrutura principal
+
+- `src/main.py`: ponto de entrada da execução local via terminal. Recebe a pergunta do usuário, executa o workflow e exibe as etapas do processamento.
+- `src/graph/workflow.py`: define e compila o fluxo principal com LangGraph.
+- `src/graph/state.py`: concentra os tipos e o estado compartilhado pelo workflow, como query original, classificações, resultados e resposta final.
+- `src/graph/nodes.py`: reúne os nós do router, como classificação da pergunta, roteamento para agentes e síntese da resposta final.
+- `src/agents/search_agent.py`: define o agente de busca responsável por usar ferramentas e produzir a apuração inicial.
+- `src/tools/`: contém as ferramentas utilizadas pelos agentes, como busca de links, leitura de URLs e data atual.
+- `src/llms.py`: centraliza a configuração dos modelos usados pelo router e pelos agentes.
+- `src/util.py`: reúne utilitários compartilhados, como carregamento de prompts.
+- `prompts/`: armazena os prompts em arquivos `.md`, facilitando manutenção e ajuste fora do código Python.
+
+### Objetivo dessa organização
+
+Essa separação permite evoluir o projeto com mais clareza. Novos agentes podem ser adicionados sem concentrar toda a lógica em um único arquivo, e o fluxo do router pode crescer sem misturar configuração de modelo, tools, prompts e interface de terminal no mesmo lugar.
+
 ## Tecnologias envolvidas
 
 * Docker
@@ -140,4 +160,3 @@ Essa abordagem favorece a transparência, permite auditoria pública, estimula c
 * SerpAPI
 
 ---
-
