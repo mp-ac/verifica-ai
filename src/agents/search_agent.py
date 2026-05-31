@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, ToolMessage
 
@@ -6,12 +8,14 @@ from llms import agent_llm
 from tools.current_date import current_date
 from tools.fetch_url import fetch_url
 from tools.get_links import get_links
-from util import load_system_prompt
+from util import load_prompt
+
+load_dotenv()
 
 search_agent = create_agent(
     agent_llm,
     tools=[current_date, get_links, fetch_url],
-    system_prompt=load_system_prompt(),
+    system_prompt=load_prompt(os.getenv('SEARCH_AGENT_PROMPT')),
 )
 
 
