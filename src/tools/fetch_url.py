@@ -46,20 +46,20 @@ def fetch_url(url: str) -> str:
     principais da execução.
     """
 
-    base_url = os.getenv("DOCLING_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-    bearer_token = os.getenv("DOCLING_BEARER_TOKEN")
-    submit_url = os.getenv("DOCLING_SUBMIT_URL", f"{base_url}/document_to_markdown")
+    base_url = os.getenv("FETCH_SITE_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+    bearer_token = os.getenv("FETCH_SITE_BEARER_TOKEN")
+    submit_url = os.getenv("FETCH_SITE_SUBMIT_URL", f"{base_url}/document_to_markdown")
     status_url_template = os.getenv(
-        "DOCLING_STATUS_URL_TEMPLATE", f"{base_url}/status/{{task_id}}"
+        "FETCH_SITE_STATUS_URL_TEMPLATE", f"{base_url}/status/{{task_id}}"
     )
-    timeout_seconds = float(os.getenv("DOCLING_TIMEOUT_SECONDS", "60"))
-    poll_interval_seconds = float(os.getenv("DOCLING_POLL_INTERVAL_SECONDS", "1"))
+    timeout_seconds = float(os.getenv("FETCH_SITE_TIMEOUT_SECONDS", "60"))
+    poll_interval_seconds = float(os.getenv("FETCH_SITE_POLL_INTERVAL_SECONDS", "1"))
 
     if not bearer_token:
         return json5.dumps(
             {
                 "url": url,
-                "erro": "A variável de ambiente DOCLING_BEARER_TOKEN não foi definida.",
+                "erro": "A variável de ambiente FETCH_SITE_BEARER_TOKEN não foi definida.",
             },
             ensure_ascii=False,
         )
