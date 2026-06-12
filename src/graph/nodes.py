@@ -1,12 +1,10 @@
-import os
-from dotenv import load_dotenv
-from llms import router_llm
 from langgraph.types import Send
+
+from config import ROUTER_CLASSIFICATION_PROMPT, ROUTER_SYNTHESIS_PROMPT
 from graph.state import ClassificationResult, FinalAnswerResult, RouterState, SourceItem
+from llms import router_llm
 
 from util import load_prompt
-
-load_dotenv()
 
 
 def classify_query(state: RouterState) -> dict:
@@ -16,7 +14,7 @@ def classify_query(state: RouterState) -> dict:
     result = structured_llm.invoke([
         {
             "role": "system",
-            "content": load_prompt(os.getenv('ROUTER_CLASSIFICATION_PROMPT'))
+            "content": load_prompt(ROUTER_CLASSIFICATION_PROMPT)
 
         },
         {"role": "user", "content": state["query"]}
@@ -65,7 +63,7 @@ def synthesize_results(state: RouterState) -> dict:
     synthesis_response = structured_llm.invoke([
         {
             "role": "system",
-            "content": load_prompt(os.getenv('ROUTER_SYNTHESIS_PROMPT')).format(
+            "content": load_prompt(ROUTER_SYNTHESIS_PROMPT).format(
                 query=state["query"]
             )
         },

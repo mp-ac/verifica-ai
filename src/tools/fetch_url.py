@@ -1,10 +1,17 @@
-import os
 from time import monotonic, sleep
 from urllib.parse import urlparse
 
 import json5
 import requests
 from langchain_core.tools import tool
+
+from config import (
+    FETCH_SITE_BEARER_TOKEN,
+    FETCH_SITE_POLL_INTERVAL_SECONDS,
+    FETCH_SITE_STATUS_URL_TEMPLATE,
+    FETCH_SITE_SUBMIT_URL,
+    FETCH_SITE_TIMEOUT_SECONDS,
+)
 
 
 def _extract_title_from_markdown(document: str) -> str:
@@ -46,16 +53,7 @@ def fetch_url(url: str) -> str:
     principais da execução.
     """
 
-    base_url = os.getenv("FETCH_SITE_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
-    bearer_token = os.getenv("FETCH_SITE_BEARER_TOKEN")
-    submit_url = os.getenv("FETCH_SITE_SUBMIT_URL", f"{base_url}/document_to_markdown")
-    status_url_template = os.getenv(
-        "FETCH_SITE_STATUS_URL_TEMPLATE", f"{base_url}/status/{{task_id}}"
-    )
-    timeout_seconds = float(os.getenv("FETCH_SITE_TIMEOUT_SECONDS", "60"))
-    poll_interval_seconds = float(os.getenv("FETCH_SITE_POLL_INTERVAL_SECONDS", "1"))
-
-    if not bearer_token:
+    if not FETCH_SITE_BEARER_TOKEN:
         return json5.dumps(
             {
                 "url": url,
@@ -65,7 +63,7 @@ def fetch_url(url: str) -> str:
         )
 
     headers = {
-        "Authorization": f"Bearer {bearer_token}",
+        "Authorization": f"Bearer {FETCH_SITE_BEARER_TOKEN}",
         "Accept": "application/json",
     }
 
@@ -76,7 +74,7 @@ def fetch_url(url: str) -> str:
 
     try:
         submit_response = requests.post(
-            submit_url,
+            FETCH_SITE_SUBMIT_URL,
             data=payload,
             headers=headers,
             timeout=60,
@@ -115,10 +113,10 @@ def fetch_url(url: str) -> str:
 
     started_at = monotonic()
 
-    while monotonic() - started_at <= timeout_seconds:
+    while monotonic() - started_at <= FETCH_SITE_TIMEOUT_SECONDS:
         try:
             status_response = requests.get(
-                status_url_template.format(task_id=task_id),
+                FETCH_SITE_STATUS_URL_TEMPLATE.format(task_id=task_id),
                 headers=headers,
                 timeout=30,
             )
@@ -183,14 +181,14 @@ def fetch_url(url: str) -> str:
                 ensure_ascii=False,
             )
 
-        sleep(poll_interval_seconds)
+        sleep(FETCH_SITE_POLL_INTERVAL_SECONDS)
 
     return json5.dumps(
         {
             "url": url,
             "task_id": task_id,
             "erro": "Timeout aguardando o processamento da URL no Docling.",
-            "timeout_seconds": timeout_seconds,
+            "timeout_seconds": FETCH_SITE_TIMEOUT_SECONDS,
         },
         ensure_ascii=False,
     )

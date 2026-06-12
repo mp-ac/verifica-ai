@@ -1,21 +1,26 @@
-import os
-from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-load_dotenv()
+from config import (
+    ROUTER_API_KEY,
+    ROUTER_BASE_URL,
+    ROUTER_MODEL,
+    SEARCH_API_KEY,
+    SEARCH_BASE_URL,
+    SEARCH_MODEL,
+)
 
 router_llm = ChatOpenAI(
-    model=os.getenv("ROUTER_MODEL", os.getenv("LOCAL_MODEL")),
-    base_url=os.getenv("ROUTER_BASE_URL", os.getenv("PROVIDER_URL")),
-    api_key=os.getenv("ROUTER_API_KEY", os.getenv("PROVIDER_API_KEY")),
+    model=ROUTER_MODEL,
+    base_url=ROUTER_BASE_URL,
+    api_key=ROUTER_API_KEY,
     temperature=0.5,
     timeout=120,
 )
 
 agent_llm = ChatOpenAI(
-    model=os.getenv("SEARCH_MODEL", os.getenv("LOCAL_MODEL")),
-    base_url=os.getenv("SEARCH_BASE_URL", os.getenv("PROVIDER_URL")),
-    api_key=os.getenv("SEARCH_API_KEY", os.getenv("PROVIDER_API_KEY")),
+    model=SEARCH_MODEL,
+    base_url=SEARCH_BASE_URL,
+    api_key=SEARCH_API_KEY,
     temperature=0.1,
     timeout=120,
 )

@@ -1,8 +1,8 @@
-import os
-
 import json5
 import serpapi
 from langchain_core.tools import tool
+
+from config import SERPAPI_API_KEY
 
 
 @tool("get_links")
@@ -16,7 +16,7 @@ def get_links(query: str):
     """
 
     try:
-        api_key = os.getenv("SERPAPI_API_KEY")
+        api_key = SERPAPI_API_KEY
         if not api_key:
             return json5.dumps(
                 {"erro": "A variável de ambiente SERPAPI_API_KEY não foi definida."},

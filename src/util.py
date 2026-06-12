@@ -1,15 +1,10 @@
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from config import SYSTEM_PROMPT_FILE
 
 
 def load_system_prompt() -> str:
-    """Load the main system prompt from the file configured in the environment."""
-    prompt_file = os.getenv("SYSTEM_PROMPT_FILE")
-
-    if prompt_file:
-        return load_prompt(prompt_file)
+    """Load the main system prompt"""
+    if SYSTEM_PROMPT_FILE:
+        return load_prompt(SYSTEM_PROMPT_FILE)
 
     return None
 
