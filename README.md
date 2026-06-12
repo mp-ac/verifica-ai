@@ -159,4 +159,8 @@ Essa separação permite evoluir o projeto com mais clareza. Novos agentes podem
 * Docling
 * SerpAPI
 
+## Licença
+
+Este projeto é disponibilizado sob a licença `GNU Affero General Public License v3.0` (`AGPL-3.0`).
+
 ---
