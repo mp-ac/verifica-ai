@@ -25,7 +25,7 @@ O que ainda não existe ou está incompleto:
 - processamento real de imagem;
 - transcrição real de áudio.
 
-Importante: a tool de transcrição em [src/tools/audio_transcription.py](/Users/carneiro/Projetos/mpac/denunciai.mpac.mp.br/src/tools/audio_transcription.py:1) ainda é um stub e retorna um exemplo fixo.
+Importante: a tool de transcrição em [src/tools/audio_transcription.py](src/tools/audio_transcription.py) ainda é um stub e retorna um exemplo fixo.
 
 ## Como o protótipo funciona
 
@@ -108,6 +108,6 @@ Depois disso, o workflow imprime as fases do processamento e a resposta final es
 
 ## Licença
 
-Este projeto está licenciado sob a `GNU Affero General Public License v3.0` (`AGPL-3.0`). Veja o arquivo [LICENSE](/Users/carneiro/Projetos/mpac/denunciai.mpac.mp.br/LICENSE) para mais detalhes.
+Este projeto está licenciado sob a `GNU Affero General Public License v3.0` (`AGPL-3.0`). Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 Titular institucional do projeto: `Ministério Público do Estado do Acre`.
