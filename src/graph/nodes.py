@@ -2,7 +2,8 @@ import os
 from dotenv import load_dotenv
 from llms import router_llm
 from langgraph.types import Send
-from graph.state import ClassificationResult, RouterState
+from graph.state import ClassificationResult, FinalAnswerResult, RouterState, SourceItem
+
 from util import load_prompt
 
 load_dotenv()
@@ -42,7 +43,15 @@ def synthesize_results(state: RouterState) -> dict:
     """Combine results from all agents into a coherent answer."""
     if not state["results"]:
         return {
-            "final_answer": "No results found from any knowledge source.",
+            "final_answer": FinalAnswerResult(
+                answer="Nenhum resultado foi encontrado",
+                sources=[
+                    SourceItem(
+                        title="Sem fontes disponíveis",
+                        url=""
+                    )
+                ]
+            ),
             "debug_events": ["Nenhum resultado foi devolvido pelos agentes."],
         }
 
@@ -51,7 +60,9 @@ def synthesize_results(state: RouterState) -> dict:
         for r in state["results"]
     ]
 
-    synthesis_response = router_llm.invoke([
+    structured_llm = router_llm.with_structured_output(FinalAnswerResult)
+
+    synthesis_response = structured_llm.invoke([
         {
             "role": "system",
             "content": load_prompt(os.getenv('ROUTER_SYNTHESIS_PROMPT')).format(
@@ -62,6 +73,6 @@ def synthesize_results(state: RouterState) -> dict:
     ])
 
     return {
-        "final_answer": synthesis_response.content,
+        "final_answer": synthesis_response,
         "debug_events": ["Router sintetizou a resposta final a partir dos resultados do agente."],
     }

@@ -20,12 +20,25 @@ class Classification(TypedDict):
     query: str
 
 
+class SourceItem(BaseModel):
+    title: str
+    url: str
+
+
+class FinalAnswerResult(BaseModel):
+    answer: str = Field(description="Resposta final consolidada para o usuário")
+    sources: list[SourceItem] = Field(
+        default_factory=list,
+        description="Fontes que foram usadas pelos agentes"
+    )
+
+
 class RouterState(TypedDict):
     query: str
     classifications: list[Classification]
     results: Annotated[list[AgentOutput], operator.add]
     debug_events: Annotated[list[str], operator.add]
-    final_answer: str
+    final_answer: FinalAnswerResult
 
 
 class ClassificationResult(BaseModel):

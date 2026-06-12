@@ -49,4 +49,7 @@ for chunk in workflow.stream({"query": query}, stream_mode="updates"):
             for event in data.get("debug_events", []):
                 print(f"- {event}")
             print("\nResposta final:")
-            print(data.get("final_answer", ""))
+            final_answer = data.get("final_answer")
+
+            if final_answer:
+                print(final_answer.model_dump_json(indent=2))
