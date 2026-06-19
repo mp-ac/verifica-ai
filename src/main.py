@@ -1,55 +1,47 @@
+import os
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
 from graph.workflow import workflow
+from schemas import AnalyzeRequest, AnalyzeResponse
+
+load_dotenv()
+
+app = FastAPI(
+    title=os.getenv("APP_NAME"),
+    version=os.getenv("APP_VERSION"),
+)
 
 
-query = input("O que você quer procurar? ")
+@app.get("/")
+async def index() -> dict:
+    return {
+        "status": "success",
+        "message": "DenuncIAI API",
+    }
 
-print("\n" + "=" * 80)
-print("FASE 1 - MENSAGEM DO USUARIO")
-print("=" * 80)
-print(query)
 
-for chunk in workflow.stream({"query": query}, stream_mode="updates"):
-    for step, data in chunk.items():
-        if step == "classify":
-            print("\n" + "=" * 80)
-            print("FASE 2 - ROUTER INTERPRETOU E CLASSIFICOU")
-            print("=" * 80)
-            for event in data.get("debug_events", []):
-                print(f"- {event}")
-            print("\nClassificacoes:")
-            for classification in data.get("classifications", []):
-                print(f"- {classification['source']}: {classification['query']}")
+@app.get("/health")
+async def healthcheck() -> dict:
+    return {"status": "ok"}
 
-        elif step == "transcription_agent":
-            print("\n" + "=" * 80)
-            print("FASE 3 - AGENTE DE TRANSCRICAO EXECUTOU")
-            print("=" * 80)
-            for event in data.get("debug_events", []):
-                print(f"- {event}")
-            print("\nResultado bruto do agente:")
-            for result in data.get("results", []):
-                print(f"\n[{result['source']}]")
-                print(result["result"])
 
-        elif step == "search_agent":
-            print("\n" + "=" * 80)
-            print("FASE 4 - AGENTE DE BUSCA EXECUTOU")
-            print("=" * 80)
-            for event in data.get("debug_events", []):
-                print(f"- {event}")
-            print("\nResultado bruto do agente:")
-            for result in data.get("results", []):
-                print(f"\n[{result['source']}]")
-                print(result["result"])
+@app.post("/analyze", response_model=AnalyzeResponse)
+async def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
+    try:
+        final_answer = None
 
-        elif step == "synthesize":
-            print("\n" + "=" * 80)
-            print("FASE 5 - ROUTER GEROU A RESPOSTA FINAL")
-            print("=" * 80)
-            for event in data.get("debug_events", []):
-                print(f"- {event}")
-            print("\nResposta final:")
-            final_answer = data.get("final_answer")
+        for chunk in workflow.stream(
+            {"query": payload.query},
+            stream_mode="updates",
+        ):
+            for step, data in chunk.items():
+                answer = data.get("final_answer")
+                if answer is not None:
+                    final_answer = answer
 
-            if final_answer:
-                print(final_answer.model_dump_json(indent=2))
+        return AnalyzeResponse(query=payload.query, final_answer=final_answer)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Falha ao executar o workflow de analise.",
+        ) from exc
