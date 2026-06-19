@@ -1,0 +1,19 @@
+name: Aprimoramento
+description: Novo recurso ou melhoria de um existente 
+title: "[Aprimoramento]: "
+labels: ["enhancement"]
+body:
+    - type: textarea
+      id: aprimoramento
+      attributes:
+          label: Aprimoramento
+          description: Descreva detalhadamente qual o novo recurso ou aprimoramento desejado.
+      validations:
+          required: true
+    - type: textarea
+      id: impacto
+      attributes:
+          label: Impacto esperado
+          description: Qual o impacto esperado no sistema com esse aprimoramento ou novo recurso?
+      validations:
+          required: false

@@ -1,0 +1,37 @@
+name: Reportar Bug
+description: Reportar um erro de comportamento ou bug do código
+title: "[Bug]: "
+labels: ["bug"]
+body:
+    - type: textarea
+      id: o-que-houve
+      attributes:
+          label: O que houve?
+          description: Explique claramente o que ocorreu e qual o comportamento esperado.
+          placeholder: Exemplo > Ao chamar o endpoint x, recebo o erro 500
+      validations:
+          required: true
+    - type: textarea
+      id: como-reproduzir
+      attributes:
+          label: Como reproduzir o erro/bug
+          description: Descreva detalhadamente o passo a passo para o erro acontecer
+      validations:
+          required: true
+    - type: dropdown
+      id: versao_python
+      attributes:
+        label: Qual a versão do Python você está usando?
+        description: Selecione as versões testadas
+        multiple: true
+        options:
+        - Python 3.12.x
+        - Python 3.13.x
+        - Python 3.14.x
+    - type: textarea
+      id: notas
+      attributes:
+          label: Informações Adicionais
+          description: Insira qualquer outra informação relevante relacionada ao erro/bug
+      validations:
+          required: false
