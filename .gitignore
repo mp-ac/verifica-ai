@@ -19,3 +19,8 @@ index_dir
 db
 images
 test_output
+
+Dockerfile
+docker-compose.yml
+prod.yml
+dev.yml

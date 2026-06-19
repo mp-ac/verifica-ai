@@ -1,0 +1,36 @@
+services:
+  denunciai-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: denunciai-api
+    env_file:
+      - ./.env
+    networks:
+      - proxy
+    ports:
+      - "8001:8000"
+    environment:
+      TZ: ${APP_TZ}
+      REDIS_URL: redis://denunciai-redis:6379/0
+    volumes:
+      - ./.env:/app/.env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: denunciai-redis
+    networks:
+      - app
+    restart: unless-stopped
+    volumes:
+      - denunciai_redis_data:/data
+
+networks:
+  proxy:
+    external: true
+
+volumes:
+  denunciai_redis_data:

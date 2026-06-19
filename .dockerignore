@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+.DS_Store
+.env
+build
+dist
+wheels
+*.egg-info
+inferenc.ia
