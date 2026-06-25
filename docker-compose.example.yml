@@ -23,7 +23,7 @@ services:
     image: redis:7
     container_name: denunciai-redis
     networks:
-      - app
+      - proxy
     restart: unless-stopped
     volumes:
       - denunciai_redis_data:/data
