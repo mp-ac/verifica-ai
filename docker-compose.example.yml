@@ -1,9 +1,9 @@
 services:
-  denunciai-api:
+  verificaai-api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: denunciai-api
+    container_name: verificaai-api
     env_file:
       - ./.env
     networks:
@@ -12,25 +12,46 @@ services:
       - "8001:8000"
     environment:
       TZ: ${APP_TZ}
-      REDIS_URL: redis://denunciai-redis:6379/0
+      REDIS_URL: redis://verificaai-redis:6379/0
     volumes:
       - ./.env:/app/.env
+      - ./db:/app/db
     depends_on:
-      - redis
+      - verificaai-redis
     restart: unless-stopped
 
-  redis:
+  verificaai-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: verificaai-worker
+    env_file:
+      - ./.env
+    networks:
+      - proxy
+    environment:
+      TZ: ${APP_TZ}
+      REDIS_URL: redis://verificaai-redis:6379/0
+    volumes:
+      - ./.env:/app/.env
+      - ./db:/app/db
+    depends_on:
+      - verificaai-redis
+    command: ["/bin/sh", "-c", "exec uv run python src/worker.py"]
+    restart: unless-stopped
+
+  verificaai-redis:
     image: redis:7
-    container_name: denunciai-redis
+    container_name: verificaai-redis
     networks:
       - proxy
     restart: unless-stopped
     volumes:
-      - denunciai_redis_data:/data
+      - verificaai_redis_data:/data
 
 networks:
   proxy:
     external: true
 
 volumes:
-  denunciai_redis_data:
+  verificaai_redis_data:
