@@ -13,3 +13,14 @@ class AnalyzeRequest(BaseModel):
 class AnalyzeResponse(BaseModel):
     query: str
     final_answer: FinalAnswerResult | None = None
+
+
+class AnalyzeEnqueueResponse(BaseModel):
+    task_id: str
+    status: str
+
+
+class AnalyzeStatusResponse(BaseModel):
+    status: str
+    result: AnalyzeResponse | None = None
+    error: str | None = None

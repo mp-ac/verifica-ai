@@ -4,7 +4,7 @@ from config import TRANSCRIPTION_AGENT_PROMPT
 from graph.state import AgentInput
 from llms import agent_llm
 from tools.audio_transcription import audio_transcription
-from util import load_prompt
+from utils.prompts_util import load_prompt
 
 transcription_agent = create_agent(
     agent_llm,

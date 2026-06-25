@@ -3,8 +3,7 @@ from langgraph.types import Send
 from config import ROUTER_CLASSIFICATION_PROMPT, ROUTER_SYNTHESIS_PROMPT
 from graph.state import ClassificationResult, FinalAnswerResult, RouterState, SourceItem
 from llms import router_llm
-
-from util import load_prompt
+from utils.prompts_util import load_prompt
 
 
 def classify_query(state: RouterState) -> dict:

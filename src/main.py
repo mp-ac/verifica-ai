@@ -1,7 +1,11 @@
 import os
+import uuid
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
+from redis import Redis
+from rq import Queue
+from rq.job import Job
 
 from auth import (
     TokenCreateRequest,
@@ -16,8 +20,21 @@ from auth import (
     verify_admin_token,
     verify_bearer_token,
 )
-from graph.workflow import workflow
-from schemas import AnalyzeRequest, AnalyzeResponse
+from queueing import (
+    failure_ttl_seconds,
+    job_timeout_seconds,
+    queue_name,
+    redis_url,
+    result_ttl_seconds,
+)
+from jobs import process_analyze_job
+from schemas import (
+    AnalyzeEnqueueResponse,
+    AnalyzeRequest,
+    AnalyzeResponse,
+    AnalyzeStatusResponse,
+)
+from utils.job_utils import resolve_job_id
 
 load_dotenv()
 configure_auth(build_auth_config_from_env())
@@ -30,6 +47,9 @@ app = FastAPI(
     version=os.getenv("APP_VERSION"),
     docs_url="/docs" if enable_docs else None,
 )
+
+redis_conn = Redis.from_url(redis_url())
+q = Queue(queue_name(), connection=redis_conn)
 
 
 @app.on_event("startup")
@@ -50,29 +70,64 @@ async def healthcheck() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/analyze", response_model=AnalyzeResponse)
+@app.post("/analyze", response_model=AnalyzeEnqueueResponse, status_code=202)
 async def analyze(
     payload: AnalyzeRequest,
     _token_data: TokenResponse = Depends(verify_bearer_token),
-) -> AnalyzeResponse:
+) -> AnalyzeEnqueueResponse:
     try:
-        final_answer = None
+        job = q.enqueue(
+            process_analyze_job,
+            payload.query,
+            job_timeout=job_timeout_seconds(),
+            result_ttl=result_ttl_seconds(),
+            failure_ttl=failure_ttl_seconds(),
+        )
+        task_id = resolve_job_id(job)
+        if not task_id:
+            raise HTTPException(
+                status_code=500,
+                detail="Não foi possível enfileirar o job.",
+            )
 
-        for chunk in workflow.stream(
-            {"query": payload.query},
-            stream_mode="updates",
-        ):
-            for step, data in chunk.items():
-                answer = data.get("final_answer")
-                if answer is not None:
-                    final_answer = answer
-
-        return AnalyzeResponse(query=payload.query, final_answer=final_answer)
+        return AnalyzeEnqueueResponse(task_id=task_id, status="queued")
     except Exception as exc:
         raise HTTPException(
             status_code=500,
-            detail="Falha ao executar o workflow de analise.",
+            detail="Falha ao enfileirar a analise.",
         ) from exc
+
+
+@app.get("/status/{task_id}", response_model=AnalyzeStatusResponse)
+async def get_status(task_id: str) -> AnalyzeStatusResponse:
+    try:
+        job = Job.fetch(task_id, connection=redis_conn)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=404,
+            detail="Job não encontrado"
+        ) from exc
+
+    if job.is_queued:
+        return AnalyzeStatusResponse(status="queued")
+    if job.is_started:
+        return AnalyzeStatusResponse(status="processing")
+    if job.is_finished:
+        result = job.result or {}
+        return AnalyzeStatusResponse(
+            status=result.get("status", "done"),
+            result=AnalyzeResponse(
+                query=result.get("query", ""),
+                final_answer=result.get("final_answer"),
+            ),
+        )
+    if job.is_failed:
+        return AnalyzeStatusResponse(
+            status="failed",
+            error=str(job.exc_info),
+        )
+
+    return AnalyzeStatusResponse(status=job.get_status(refresh=True))
 
 
 @app.get(
@@ -102,7 +157,6 @@ async def create_token(
     _auth: None = Depends(verify_admin_token),
     repo: TokenRepository = Depends(get_token_repo),
 ) -> TokenResponse:
-    import uuid
 
     token = (payload.token or uuid.uuid4().hex).strip()
     if not token:
