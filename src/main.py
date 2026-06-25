@@ -1,5 +1,6 @@
 import os
 import uuid
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -42,19 +43,22 @@ configure_auth(build_auth_config_from_env())
 enable_docs = os.getenv("DOCS_URL_ENABLED", "false").lower() == "true"
 show_admin_docs = os.getenv("ADMIN_DOCS_ENABLED", "false").lower() == "true"
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    init_auth_db()
+    yield
+
+
 app = FastAPI(
     title=os.getenv("APP_NAME"),
     version=os.getenv("APP_VERSION"),
     docs_url="/docs" if enable_docs else None,
+    lifespan=lifespan,
 )
 
 redis_conn = Redis.from_url(redis_url())
 q = Queue(queue_name(), connection=redis_conn)
-
-
-@app.on_event("startup")
-async def startup() -> None:
-    init_auth_db()
 
 
 @app.get("/")
