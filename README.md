@@ -1,4 +1,4 @@
-# DenuncIAI
+# VerificaAI
 
 Protótipo em Python para triagem e apuração assistida de possíveis fake news. O projeto nasceu para apoiar o combate à desinformação no período eleitoral e deve evoluir depois para cenários mais amplos de verificação de fatos.
 
