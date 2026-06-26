@@ -13,18 +13,30 @@ transcription_agent = create_agent(
 )
 
 
+def _build_search_query(semantic_result: str) -> str:
+    return "\n".join([
+        "Analise a alegação extraída de uma transcrição de áudio.",
+        "",
+        semantic_result,
+    ])
+
+
 def query_transcription(state: AgentInput) -> dict:
     """Query the Transcription Agent."""
     result = transcription_agent.invoke({
         "messages": [{"role": "user", "content": state["query"]}]
     })
+    semantic_result = result["messages"][-1].content
+
     return {
-        "query": result["messages"][-1].content,
+        "query": _build_search_query(semantic_result),
         "results": [
             {
                 "source": "transcription_agent",
-                "result": result["messages"][-1].content,
+                "result": semantic_result,
             }
         ],
-        "debug_events": ["Agente de transcrição concluiu a transcrição."],
+        "debug_events": [
+            "Agente de transcrição concluiu a transcrição e extraiu o contexto semântico.",
+        ],
     }
