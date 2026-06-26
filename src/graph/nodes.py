@@ -2,7 +2,7 @@ from langgraph.types import Send
 
 from config import ROUTER_CLASSIFICATION_PROMPT, ROUTER_SYNTHESIS_PROMPT
 from graph.state import ClassificationResult, FinalAnswerResult, RouterState, SourceItem
-from llms import router_llm
+from llm_registry import router_llm
 from utils.prompts_util import load_prompt
 
 

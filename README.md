@@ -68,11 +68,24 @@ cp .env.example .env
 
 Principais grupos de configuração:
 
-- `ROUTER_*`: modelo e endpoint usados pelo router.
-- `SEARCH_*`: modelo e endpoint usados pelo agente de busca.
+- `ROUTER_*`: configuração da LLM do router.
+- `SEARCH_*`: configuração da LLM do agente de busca.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
+
+Para `ROUTER_*` e `SEARCH_*`, o contrato é sempre o mesmo:
+
+- `*_PROVIDER`: `google`, `openai` ou `vllm`
+- `*_MODEL`: nome do modelo
+- `*_API_KEY`: credencial do provider
+- `*_BASE_URL`: endpoint do provider quando ele for OpenAI-compatible
+
+Regra prática:
+
+- `google`: use `*_PROVIDER`, `*_MODEL` e `*_API_KEY`; deixe `*_BASE_URL`
+  vazio
+- `openai` e `vllm`: use os quatro campos
 
 ## Execução local
 
