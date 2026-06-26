@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 
 from config import TRANSCRIPTION_AGENT_PROMPT
 from graph.state import AgentInput
-from llms import agent_llm
+from llm_registry import agent_llm
 from tools.audio_transcription import audio_transcription
 from utils.prompts_util import load_prompt
 
