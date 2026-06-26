@@ -81,11 +81,30 @@ Para `ROUTER_*` e `SEARCH_*`, o contrato é sempre o mesmo:
 - `*_API_KEY`: credencial do provider
 - `*_BASE_URL`: endpoint do provider quando ele for OpenAI-compatible
 
+`router` e `search` podem usar providers diferentes. Exemplo: `ROUTER_PROVIDER`
+pode ser `google` enquanto `SEARCH_PROVIDER` continua como `vllm`.
+
 Regra prática:
 
 - `google`: use `*_PROVIDER`, `*_MODEL` e `*_API_KEY`; deixe `*_BASE_URL`
   vazio
 - `openai` e `vllm`: use os quatro campos
+
+Exemplos:
+
+```env
+ROUTER_PROVIDER=google
+ROUTER_MODEL=gemini-2.5-flash
+ROUTER_API_KEY=sua_chave_google
+ROUTER_BASE_URL=
+```
+
+```env
+SEARCH_PROVIDER=vllm
+SEARCH_MODEL=Qwen/Qwen3-14B-FP8
+SEARCH_API_KEY=sua_chave_vllm
+SEARCH_BASE_URL=https://seu-endpoint/v1
+```
 
 ## Execução local
 
