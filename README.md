@@ -14,6 +14,7 @@ O que existe hoje:
 - workflow em `LangGraph`;
 - roteamento entre agentes por tipo de entrada;
 - agente de busca com ferramentas de data atual, descoberta de links e leitura de páginas;
+- agente de transcrição com extração de alegação principal, pergunta de verificação e contexto semântico para busca;
 - síntese final estruturada da resposta;
 - prompts separados em arquivos `.md`.
 
@@ -34,13 +35,14 @@ O fluxo atual é:
 1. o usuário digita uma consulta no terminal;
 2. o router classifica a entrada;
 3. o workflow decide quais agentes executar;
-4. o agente de busca usa ferramentas externas para apuração;
-5. o router sintetiza a resposta final.
+4. se a entrada for áudio, o agente de transcrição prepara uma consulta semântica para o agente de busca;
+5. o agente de busca usa ferramentas externas para apuração;
+6. o router sintetiza a resposta final.
 
 Hoje os agentes disponíveis são:
 
 - `search_agent`: faz busca e leitura de fontes;
-- `transcription_agent`: recebe referência de áudio, mas ainda usa transcrição mockada.
+- `transcription_agent`: recebe referência de áudio, usa a transcrição mockada e extrai alegação principal, pergunta de verificação e contexto semântico para orientar o `search_agent`.
 
 ## Requisitos
 
