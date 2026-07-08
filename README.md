@@ -122,6 +122,10 @@ O que você quer procurar?
 
 Depois disso, o workflow imprime as fases do processamento e a resposta final estruturada.
 
+## Dependências
+
+Para permitir que o agente acesse URLs encontradas, você pode usar este projeto: [https://github.com/mp-ac/link_para_markdown](https://github.com/mp-ac/link_para_markdown)
+
 ## Limitações atuais
 
 - o projeto ainda depende de serviços externos para LLM e leitura de páginas;
