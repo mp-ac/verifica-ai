@@ -1,13 +1,16 @@
 import os
-from dotenv import load_dotenv
+import uuid
 from functools import cache
+
+from dotenv import load_dotenv
+from fastembed import (
+    LateInteractionTextEmbedding,
+    SparseTextEmbedding,
+    TextEmbedding,
+)
 from qdrant_client import QdrantClient, models
 
-from fastembed import (
-    TextEmbedding,
-    SparseTextEmbedding,
-    LateInteractionTextEmbedding
-)
+from graph.state import FinalAnswerResult
 
 load_dotenv()
 
@@ -78,3 +81,48 @@ def ensure_collection(
             "sparse": models.SparseVectorParams(),
         },
     )
+
+
+def save_final_answer(
+    query: str,
+    final_answer: FinalAnswerResult,
+    point_id: str | None = None,
+    collection_name: str = COLLECTION_NAME,
+) -> str:
+    document_text = (
+        f"Pergunta: {query}\n\n"
+        f"Resposta: {final_answer.answer}"
+    )
+
+    dense_embedding = next(get_dense_model().passage_embed([document_text]))
+    sparse_embedding = next(get_sparse_model().passage_embed([document_text]))
+    colbert_embedding = next(get_colbert_model().passage_embed([document_text]))
+
+    point_id = point_id or str(uuid.uuid4())
+    point = models.PointStruct(
+        id=point_id,
+        vector={
+            "dense": dense_embedding.tolist(),
+            "sparse": sparse_embedding.as_object(),
+            "colbert": colbert_embedding.tolist(),
+        },
+        payload={
+            "text": f"passage: {document_text}",
+            "meta": "verifica-ai",
+            "query": query,
+            "answer": final_answer.answer,
+            "sources": [
+                source.model_dump() for source in final_answer.sources
+            ],
+        },
+    )
+
+    qdrant = get_qdrant_client()
+    ensure_collection(qdrant, collection_name)
+    qdrant.upsert(
+        collection_name=collection_name,
+        points=[point],
+        wait=True,
+    )
+
+    return point_id
