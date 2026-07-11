@@ -23,6 +23,7 @@ dependencies = [
     "requests>=2.32.5",
     "rq>=2.6,<3",
     "uvicorn>=0.35,<1",
+    "qdrant-client[fastembed]>=1.16.2",
 ]
 
 [dependency-groups]
