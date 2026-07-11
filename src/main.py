@@ -36,7 +36,7 @@ from schemas import (
     AnalyzeStatusResponse,
 )
 from utils.job_utils import resolve_job_id
-from qdrant import ensure_collection, get_qdrant_client
+from qdrant import try_ensure_collection
 
 load_dotenv()
 configure_auth(build_auth_config_from_env())
@@ -47,8 +47,7 @@ show_admin_docs = os.getenv("ADMIN_DOCS_ENABLED", "false").lower() == "true"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    qdrant = get_qdrant_client()
-    ensure_collection(qdrant)
+    try_ensure_collection()
     init_auth_db()
     yield
 

@@ -1,7 +1,7 @@
 from rq import get_current_job
 
 from graph.workflow import workflow
-from qdrant import save_final_answer
+from qdrant import try_save_final_answer
 
 
 def process_analyze_job(query: str) -> dict:
@@ -15,7 +15,7 @@ def process_analyze_job(query: str) -> dict:
 
     if final_answer is not None:
         job = get_current_job()
-        save_final_answer(
+        try_save_final_answer(
             query=query,
             final_answer=final_answer,
             point_id=job.id if job is not None else None,

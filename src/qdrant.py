@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from functools import cache
@@ -11,6 +12,8 @@ from fastembed import (
 from qdrant_client import QdrantClient, models
 
 from graph.state import FinalAnswerResult
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -83,12 +86,49 @@ def ensure_collection(
     )
 
 
+def try_ensure_collection() -> bool:
+    try:
+        ensure_collection(get_qdrant_client())
+    except Exception:
+        logger.warning(
+            "Qdrant indisponivel; a aplicacao continuara sem persistencia.",
+            exc_info=True,
+        )
+        return False
+
+    return True
+
+
+def try_save_final_answer(
+    query: str,
+    final_answer: FinalAnswerResult,
+    point_id: str | None = None,
+    collection_name: str = COLLECTION_NAME,
+) -> str | None:
+    try:
+        return save_final_answer(
+            query=query,
+            final_answer=final_answer,
+            point_id=point_id,
+            collection_name=collection_name,
+        )
+    except Exception:
+        logger.warning(
+            "Nao foi possivel salvar a resposta final no Qdrant.",
+            exc_info=True,
+        )
+        return None
+
+
 def save_final_answer(
     query: str,
     final_answer: FinalAnswerResult,
     point_id: str | None = None,
     collection_name: str = COLLECTION_NAME,
 ) -> str:
+    qdrant = get_qdrant_client()
+    ensure_collection(qdrant, collection_name)
+
     document_text = (
         f"Pergunta: {query}\n\n"
         f"Resposta: {final_answer.answer}"
@@ -117,8 +157,6 @@ def save_final_answer(
         },
     )
 
-    qdrant = get_qdrant_client()
-    ensure_collection(qdrant, collection_name)
     qdrant.upsert(
         collection_name=collection_name,
         points=[point],
