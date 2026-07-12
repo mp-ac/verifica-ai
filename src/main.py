@@ -67,7 +67,8 @@ q = Queue(queue_name(), connection=redis_conn)
 async def index() -> dict:
     return {
         "status": "success",
-        "message": "DenuncIAI API",
+        "app_name": os.getenv("APP_NAME", "API"),
+        "app_version": os.getenv("APP_VERSION", "0.0.1"),
     }
 
 
