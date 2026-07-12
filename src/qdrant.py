@@ -147,8 +147,8 @@ def save_final_answer(
             "colbert": colbert_embedding.tolist(),
         },
         payload={
-            "text": f"passage: {document_text}",
-            "meta": "verifica-ai",
+            "text": f"{document_text}",
+            "meta": os.getenv("APP_NAME", "verifica-ai"),
             "query": query,
             "answer": final_answer.answer,
             "sources": [
