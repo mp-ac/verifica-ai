@@ -15,6 +15,8 @@ O que existe hoje:
 - roteamento entre agentes por tipo de entrada;
 - agente de busca com ferramentas de data atual, descoberta de links e leitura de páginas;
 - síntese final estruturada da resposta;
+- persistência opcional das respostas finais no Qdrant;
+- geração de embeddings dense, sparse e ColBERT para busca híbrida;
 - prompts separados em arquivos `.md`.
 
 O que ainda não existe ou está incompleto:
@@ -35,7 +37,17 @@ O fluxo atual é:
 2. o router classifica a entrada;
 3. o workflow decide quais agentes executar;
 4. o agente de busca usa ferramentas externas para apuração;
-5. o router sintetiza a resposta final.
+5. o router sintetiza a resposta final;
+6. se o Qdrant estiver configurado e disponível, a pergunta e a resposta final
+   são armazenadas como um único point na collection.
+
+O point salvo no Qdrant usa o ID do job RQ como identificador e contém:
+
+- os vetores nomeados `dense`, `sparse` e `colbert`;
+- o payload `text`, `meta`, `query`, `answer` e `sources`.
+
+O uso do ID do job evita a criação de pontos duplicados caso uma mesma execução
+seja repetida.
 
 Hoje os agentes disponíveis são:
 
@@ -49,6 +61,7 @@ Hoje os agentes disponíveis são:
 - acesso a endpoints compatíveis com OpenAI para o router e para o agente de busca
 - chave da SerpAPI
 - serviço HTTP para converter URL em markdown, configurado nas variáveis `FETCH_SITE_*`
+- acesso a uma instância Qdrant, opcional, para persistência vetorial das respostas finais
 
 ## Configuração
 
@@ -72,6 +85,7 @@ Principais grupos de configuração:
 - `SEARCH_*`: configuração da LLM do agente de busca.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
+- `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
 Para `ROUTER_*` e `SEARCH_*`, o contrato é sempre o mesmo:
@@ -106,6 +120,30 @@ SEARCH_API_KEY=sua_chave_vllm
 SEARCH_BASE_URL=https://seu-endpoint/v1
 ```
 
+### Qdrant
+
+A integração com o Qdrant é opcional. Quando configurada, a aplicação verifica
+se a collection existe durante a inicialização e a cria quando necessário. Se a
+conexão ou a gravação falhar, o erro é registrado nos logs e o fluxo principal
+continua normalmente.
+
+Exemplo de configuração:
+
+```env
+QDRANT_DENSE_MODEL="intfloat/multilingual-e5-large"
+QDRANT_SPARSE_MODEL="Qdrant/bm25"
+QDRANT_COLBERT_MODEL="colbert-ir/colbertv2.0"
+QDRANT_MAX_TOKENS=1024
+QDRANT_COLLECTION_NAME="verifica-ai"
+QDRANT_API_URL="https://seu-qdrant"
+QDRANT_API_KEY="sua-chave"
+QDRANT_API_PORT=443
+```
+
+Cada resposta final é persistida como um único point. A pergunta e a resposta
+são usadas para gerar os embeddings dense, sparse e ColBERT, enquanto as fontes
+e os demais dados permanecem disponíveis no payload.
+
 ## Execução local
 
 Com o ambiente configurado:
@@ -132,6 +170,8 @@ Para permitir que o agente acesse URLs encontradas, você pode usar este projeto
 - a transcrição de áudio ainda não é real;
 - a execução atual é voltada a teste manual, não a produção;
 - os imports e o ponto de entrada ainda estão em transição para uma estrutura mais preparada para múltiplas interfaces;
+- a persistência no Qdrant é complementar e não substitui um banco transacional;
+- os modelos de embedding podem ser baixados e carregados no primeiro uso, exigindo espaço em disco e memória;
 - o README descreve o estado atual do protótipo, não a visão completa já pretendida para a plataforma final.
 
 ## Roadmap curto
