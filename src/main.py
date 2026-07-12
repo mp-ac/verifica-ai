@@ -36,6 +36,7 @@ from schemas import (
     AnalyzeStatusResponse,
 )
 from utils.job_utils import resolve_job_id
+from qdrant import try_ensure_collection
 
 load_dotenv()
 configure_auth(build_auth_config_from_env())
@@ -46,6 +47,7 @@ show_admin_docs = os.getenv("ADMIN_DOCS_ENABLED", "false").lower() == "true"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    try_ensure_collection()
     init_auth_db()
     yield
 
@@ -65,7 +67,8 @@ q = Queue(queue_name(), connection=redis_conn)
 async def index() -> dict:
     return {
         "status": "success",
-        "message": "DenuncIAI API",
+        "app_name": os.getenv("APP_NAME", "API"),
+        "app_version": os.getenv("APP_VERSION", "0.0.1"),
     }
 
 
