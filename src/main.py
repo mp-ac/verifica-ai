@@ -53,8 +53,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title=os.getenv("APP_NAME"),
-    version=os.getenv("APP_VERSION"),
+    title=str(os.getenv("APP_NAME")),
+    version=str(os.getenv("APP_VERSION")),
     docs_url="/docs" if enable_docs else None,
     lifespan=lifespan,
 )
@@ -110,10 +110,7 @@ async def get_status(task_id: str) -> AnalyzeStatusResponse:
     try:
         job = Job.fetch(task_id, connection=redis_conn)
     except Exception as exc:
-        raise HTTPException(
-            status_code=404,
-            detail="Job não encontrado"
-        ) from exc
+        raise HTTPException(status_code=404, detail="Job não encontrado") from exc
 
     if job.is_queued:
         return AnalyzeStatusResponse(status="queued")

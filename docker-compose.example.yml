@@ -40,6 +40,25 @@ services:
     command: ["/bin/sh", "-c", "exec uv run python src/worker.py"]
     restart: unless-stopped
 
+  verificaai-final-result-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: verificaai-final-result-worker
+    env_file:
+      - ./.env
+    networks:
+      - proxy
+    environment:
+      TZ: ${APP_TZ}
+      REDIS_URL: redis://verificaai-redis:6379/0
+    volumes:
+      - ./.env:/app/.env
+    depends_on:
+      - verificaai-redis
+    command: ["/bin/sh", "-c", "exec uv run python src/final_result_worker.py"]
+    restart: unless-stopped
+
   verificaai-redis:
     image: redis:7
     container_name: verificaai-redis
