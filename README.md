@@ -85,6 +85,7 @@ Principais grupos de configuração:
 - `SEARCH_*`: configuração da LLM do agente de busca.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
+- `FINAL_RESULTS_*`: fila e API de destino das respostas finais.
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
@@ -143,6 +144,27 @@ QDRANT_API_PORT=443
 Cada resposta final é persistida como um único point. A pergunta e a resposta
 são usadas para gerar os embeddings dense, sparse e ColBERT, enquanto as fontes
 e os demais dados permanecem disponíveis no payload.
+
+### Entrega dos resultados finais
+
+Ao concluir uma análise, o worker principal enfileira a entrega da resposta para
+a API configurada em `FINAL_RESULTS_API_URL`. A fila `final-results` é consumida
+por um worker dedicado e repete requisições que falharem conforme os intervalos
+definidos em `FINAL_RESULTS_RETRY_INTERVALS_SECONDS`.
+
+```env
+FINAL_RESULTS_QUEUE_NAME="final-results"
+FINAL_RESULTS_JOB_TIMEOUT_SECONDS=60
+FINAL_RESULTS_RESULT_TTL_SECONDS=86400
+FINAL_RESULTS_FAILURE_TTL_SECONDS=604800
+FINAL_RESULTS_RETRY_INTERVALS_SECONDS="10,30,60,300,900"
+FINAL_RESULTS_API_URL="http://laravel:8002/api/v1/final-results"
+FINAL_RESULTS_API_TOKEN="seu-token"
+FINAL_RESULTS_API_TIMEOUT_SECONDS=15
+```
+
+O `endpoint` deve aceitar autenticação Bearer e tratar `task_id` de forma
+idempotente para que novas tentativas não criem resultados duplicados.
 
 ## Execução local
 
