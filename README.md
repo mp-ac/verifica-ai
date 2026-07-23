@@ -14,6 +14,7 @@ O que existe hoje:
 - workflow em `LangGraph`;
 - roteamento entre agentes por tipo de entrada;
 - agente de busca com ferramentas de data atual, descoberta de links e leitura de páginas;
+- transcrição de áudio por API externa;
 - síntese final estruturada da resposta;
 - persistência opcional das respostas finais no Qdrant;
 - geração de embeddings dense, sparse e ColBERT para busca híbrida;
@@ -25,9 +26,6 @@ O que ainda não existe ou está incompleto:
 - API `FastAPI`;
 - persistência de casos, protocolos e revisão humana;
 - processamento real de imagem;
-- transcrição real de áudio.
-
-Importante: a tool de transcrição em [src/tools/audio_transcription.py](src/tools/audio_transcription.py) ainda é um stub e retorna um exemplo fixo.
 
 ## Como o protótipo funciona
 
@@ -52,7 +50,7 @@ seja repetida.
 Hoje os agentes disponíveis são:
 
 - `search_agent`: faz busca e leitura de fontes;
-- `transcription_agent`: recebe referência de áudio, mas ainda usa transcrição mockada.
+- `transcription_agent`: envia uma URL pública de áudio para transcrição e encaminha o texto ao agente de busca.
 
 ## Requisitos
 
@@ -61,6 +59,7 @@ Hoje os agentes disponíveis são:
 - acesso a endpoints compatíveis com OpenAI para o router e para o agente de busca
 - chave da SerpAPI
 - serviço HTTP para converter URL em markdown, configurado nas variáveis `FETCH_SITE_*`
+- acesso à API de transcrição, configurado nas variáveis `TRANSCRIPTION_*`
 - acesso a uma instância Qdrant, opcional, para persistência vetorial das respostas finais
 
 ## Configuração
@@ -85,6 +84,7 @@ Principais grupos de configuração:
 - `SEARCH_*`: configuração da LLM do agente de busca.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
+- `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
 - `FINAL_RESULTS_*`: fila e API de destino das respostas finais.
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
@@ -189,7 +189,7 @@ Para permitir que o agente acesse URLs encontradas, você pode usar este projeto
 ## Limitações atuais
 
 - o projeto ainda depende de serviços externos para LLM e leitura de páginas;
-- a transcrição de áudio ainda não é real;
+- a transcrição depende de uma API externa e de uma URL de áudio acessível por ela;
 - a execução atual é voltada a teste manual, não a produção;
 - os imports e o ponto de entrada ainda estão em transição para uma estrutura mais preparada para múltiplas interfaces;
 - a persistência no Qdrant é complementar e não substitui um banco transacional;
@@ -198,7 +198,6 @@ Para permitir que o agente acesse URLs encontradas, você pode usar este projeto
 
 ## Roadmap curto
 
-- transformar a transcrição em integração real;
 - reduzir acoplamento da interface CLI;
 - evoluir o núcleo atual para suportar também uma camada `FastAPI`;
 - adicionar testes automatizados;
