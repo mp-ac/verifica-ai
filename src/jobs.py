@@ -16,9 +16,13 @@ from queueing import (
 
 def process_analyze_job(query: str) -> dict:
     final_answer = None
+    executed_agents = set()
 
     for chunk in workflow.stream({"query": query}, stream_mode="updates"):
-        for _step, data in chunk.items():
+        for step, data in chunk.items():
+            if step in {"search_agent", "transcription_agent"}:
+                executed_agents.add(step)
+
             answer = data.get("final_answer")
             if answer is not None:
                 final_answer = answer
@@ -62,6 +66,7 @@ def process_analyze_job(query: str) -> dict:
                     "provider": os.getenv("SEARCH_PROVIDER", "vllm"),
                     "model": os.getenv("SEARCH_MODEL", ""),
                 },
-            ]
+            ],
+            "agents": sorted(executed_agents),
         },
     }

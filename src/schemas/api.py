@@ -20,6 +20,9 @@ class ExecutionModel(BaseModel):
 
 class ExecutionMetadata(BaseModel):
     models: list[ExecutionModel] = Field(default_factory=list)
+    agents: list[Literal["search_agent", "transcription_agent"]] = Field(
+        default_factory=list
+    )
 
 
 class AnalyzeResponse(BaseModel):
