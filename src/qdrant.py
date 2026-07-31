@@ -29,6 +29,7 @@ COLBERT_MODEL = os.getenv(
     "colbert-ir/colbertv2.0",
 )
 MAX_TOKENS = int(os.getenv("QDRANT_MAX_TOKENS", "800"))
+TIMEOUT_SECONDS = int(os.getenv("QDRANT_TIMEOUT_SECONDS", "60"))
 COLLECTION_NAME = os.getenv(
     "QDRANT_COLLECTION_NAME",
     "chatbot_cac",
@@ -54,7 +55,8 @@ def get_qdrant_client() -> QdrantClient:
     return QdrantClient(
         url=os.getenv("QDRANT_API_URL"),
         api_key=os.getenv("QDRANT_API_KEY"),
-        port=os.getenv("QDRANT_API_PORT")
+        port=os.getenv("QDRANT_API_PORT"),
+        timeout=TIMEOUT_SECONDS,
     )
 
 

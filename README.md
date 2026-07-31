@@ -139,11 +139,13 @@ QDRANT_COLLECTION_NAME="verifica-ai"
 QDRANT_API_URL="https://seu-qdrant"
 QDRANT_API_KEY="sua-chave"
 QDRANT_API_PORT=443
+QDRANT_TIMEOUT_SECONDS=60
 ```
 
 Cada resposta final é persistida como um único point. A pergunta e a resposta
 são usadas para gerar os embeddings dense, sparse e ColBERT, enquanto as fontes
-e os demais dados permanecem disponíveis no payload.
+e os demais dados permanecem disponíveis no payload. O timeout limita as
+operações de rede realizadas pelo cliente do Qdrant.
 
 ### Entrega dos resultados finais
 
