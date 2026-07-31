@@ -37,6 +37,7 @@ class RouterState(TypedDict):
     query: str
     classifications: list[Classification]
     results: Annotated[list[AgentOutput], operator.add]
+    tools: Annotated[list[str], operator.add]
     debug_events: Annotated[list[str], operator.add]
     final_answer: FinalAnswerResult
 

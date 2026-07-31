@@ -17,6 +17,9 @@ search_agent = create_agent(
 
 
 def _build_debug_events(agent_messages: list) -> list[str]:
+    """
+    Constrói uma lista de eventos de depuração a partir das mensagens do agente.
+    """
     events = ["Agente de busca recebeu a tarefa do router."]
 
     for message in agent_messages:
@@ -36,6 +39,17 @@ def _build_debug_events(agent_messages: list) -> list[str]:
     return events
 
 
+def _get_used_tools(agent_messages: list) -> list[str]:
+    """
+    Retorna os nomes únicos e ordenados das ferramentas executadas.
+    """
+    return sorted({
+        message.name
+        for message in agent_messages
+        if isinstance(message, ToolMessage) and message.name
+    })
+
+
 def query_search(state: AgentInput) -> dict:
     """Query the Search Agent."""
     result = search_agent.invoke({
@@ -43,5 +57,6 @@ def query_search(state: AgentInput) -> dict:
     })
     return {
         "results": [{"source": "search_agent", "result": result["messages"][-1].content}],
+        "tools": _get_used_tools(result["messages"]),
         "debug_events": _build_debug_events(result["messages"]),
     }

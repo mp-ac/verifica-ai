@@ -23,6 +23,7 @@ class ExecutionMetadata(BaseModel):
     agents: list[Literal["search_agent", "transcription_agent"]] = Field(
         default_factory=list
     )
+    tools: list[str] = Field(default_factory=list)
 
 
 class AnalyzeResponse(BaseModel):

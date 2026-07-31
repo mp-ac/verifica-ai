@@ -17,11 +17,14 @@ from queueing import (
 def process_analyze_job(query: str) -> dict:
     final_answer = None
     executed_agents = set()
+    executed_tools = set()
 
     for chunk in workflow.stream({"query": query}, stream_mode="updates"):
         for step, data in chunk.items():
             if step in {"search_agent", "transcription_agent"}:
                 executed_agents.add(step)
+
+            executed_tools.update(data.get("tools", []))
 
             answer = data.get("final_answer")
             if answer is not None:
@@ -68,5 +71,6 @@ def process_analyze_job(query: str) -> dict:
                 },
             ],
             "agents": sorted(executed_agents),
+            "tools": sorted(executed_tools),
         },
     }
