@@ -124,6 +124,7 @@ async def get_status(task_id: str) -> AnalyzeStatusResponse:
                 query=result.get("query", ""),
                 final_answer=result.get("final_answer"),
             ),
+            execution=result.get("execution"),
         )
     if job.is_failed:
         return AnalyzeStatusResponse(

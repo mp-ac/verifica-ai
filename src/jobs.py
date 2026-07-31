@@ -1,3 +1,5 @@
+import os
+
 from rq import Retry, get_current_job
 
 from final_results import store_final_result_job
@@ -48,4 +50,18 @@ def process_analyze_job(query: str) -> dict:
         "status": "done",
         "query": query,
         "final_answer": final_answer.model_dump() if final_answer is not None else None,
+        "execution": {
+            "models": [
+                {
+                    "role": "router",
+                    "provider": os.getenv("ROUTER_PROVIDER", "vllm"),
+                    "model": os.getenv("ROUTER_MODEL", ""),
+                },
+                {
+                    "role": "search",
+                    "provider": os.getenv("SEARCH_PROVIDER", "vllm"),
+                    "model": os.getenv("SEARCH_MODEL", ""),
+                },
+            ]
+        },
     }

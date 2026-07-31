@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from graph.state import FinalAnswerResult
@@ -8,6 +10,16 @@ class AnalyzeRequest(BaseModel):
         min_length=1,
         description="Consulta a ser analisada pelo workflow"
     )
+
+
+class ExecutionModel(BaseModel):
+    role: Literal["router", "search"]
+    provider: str
+    model: str
+
+
+class ExecutionMetadata(BaseModel):
+    models: list[ExecutionModel] = Field(default_factory=list)
 
 
 class AnalyzeResponse(BaseModel):
@@ -23,4 +35,5 @@ class AnalyzeEnqueueResponse(BaseModel):
 class AnalyzeStatusResponse(BaseModel):
     status: str
     result: AnalyzeResponse | None = None
+    execution: ExecutionMetadata | None = None
     error: str | None = None
