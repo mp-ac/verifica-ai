@@ -36,7 +36,6 @@ from schemas import (
     AnalyzeStatusResponse,
 )
 from utils.job_utils import resolve_job_id
-from qdrant import try_ensure_collection
 
 load_dotenv()
 configure_auth(build_auth_config_from_env())
@@ -47,7 +46,6 @@ show_admin_docs = os.getenv("ADMIN_DOCS_ENABLED", "false").lower() == "true"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    try_ensure_collection()
     init_auth_db()
     yield
 
@@ -124,6 +122,7 @@ async def get_status(task_id: str) -> AnalyzeStatusResponse:
                 query=result.get("query", ""),
                 final_answer=result.get("final_answer"),
             ),
+            execution=result.get("execution"),
         )
     if job.is_failed:
         return AnalyzeStatusResponse(

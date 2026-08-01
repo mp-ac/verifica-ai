@@ -12,13 +12,14 @@ from fastembed import (
 from qdrant_client import QdrantClient, models
 
 from graph.state import FinalAnswerResult
+from queueing import qdrant_enabled
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 DENSE_MODEL = os.getenv(
-    "DENSE_MODEL", "intfloat/multilingual-e5-large"
+    "QDRANT_DENSE_MODEL", "intfloat/multilingual-e5-large"
 )
 SPARSE_MODEL = os.getenv(
     "QDRANT_SPARSE_MODEL",
@@ -29,6 +30,7 @@ COLBERT_MODEL = os.getenv(
     "colbert-ir/colbertv2.0",
 )
 MAX_TOKENS = int(os.getenv("QDRANT_MAX_TOKENS", "800"))
+TIMEOUT_SECONDS = int(os.getenv("QDRANT_TIMEOUT_SECONDS", "60"))
 COLLECTION_NAME = os.getenv(
     "QDRANT_COLLECTION_NAME",
     "chatbot_cac",
@@ -54,7 +56,8 @@ def get_qdrant_client() -> QdrantClient:
     return QdrantClient(
         url=os.getenv("QDRANT_API_URL"),
         api_key=os.getenv("QDRANT_API_KEY"),
-        port=os.getenv("QDRANT_API_PORT")
+        port=os.getenv("QDRANT_API_PORT"),
+        timeout=TIMEOUT_SECONDS,
     )
 
 
@@ -87,6 +90,9 @@ def ensure_collection(
 
 
 def try_ensure_collection() -> bool:
+    if not qdrant_enabled():
+        return False
+
     try:
         ensure_collection(get_qdrant_client())
     except Exception:
@@ -99,25 +105,19 @@ def try_ensure_collection() -> bool:
     return True
 
 
-def try_save_final_answer(
+def store_qdrant_result_job(
     query: str,
-    final_answer: FinalAnswerResult,
+    final_answer: dict,
     point_id: str | None = None,
-    collection_name: str = COLLECTION_NAME,
 ) -> str | None:
-    try:
-        return save_final_answer(
-            query=query,
-            final_answer=final_answer,
-            point_id=point_id,
-            collection_name=collection_name,
-        )
-    except Exception:
-        logger.warning(
-            "Nao foi possivel salvar a resposta final no Qdrant.",
-            exc_info=True,
-        )
+    if not qdrant_enabled():
         return None
+
+    return save_final_answer(
+        query=query,
+        final_answer=FinalAnswerResult.model_validate(final_answer),
+        point_id=point_id,
+    )
 
 
 def save_final_answer(
