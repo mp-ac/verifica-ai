@@ -1,4 +1,5 @@
 from langchain.agents import create_agent
+from langchain_core.messages import ToolMessage
 
 from config import TRANSCRIPTION_AGENT_PROMPT
 from graph.state import AgentInput
@@ -11,6 +12,17 @@ transcription_agent = create_agent(
     tools=[audio_transcription],
     system_prompt=load_prompt(TRANSCRIPTION_AGENT_PROMPT),
 )
+
+
+def _get_used_tools(agent_messages: list) -> list[str]:
+    """
+    Retorna os nomes únicos e ordenados das ferramentas executadas.
+    """
+    return sorted({
+        message.name
+        for message in agent_messages
+        if isinstance(message, ToolMessage) and message.name
+    })
 
 
 def query_transcription(state: AgentInput) -> dict:
@@ -26,5 +38,6 @@ def query_transcription(state: AgentInput) -> dict:
                 "result": result["messages"][-1].content,
             }
         ],
+        "tools": _get_used_tools(result["messages"]),
         "debug_events": ["Agente de transcrição concluiu a transcrição."],
     }
