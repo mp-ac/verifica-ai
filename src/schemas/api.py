@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -24,6 +25,9 @@ class ExecutionMetadata(BaseModel):
         default_factory=list
     )
     tools: list[str] = Field(default_factory=list)
+    duration_ms: int | None = Field(default=None, ge=0)
+    completed_at: datetime | None = None
+    app_version: str | None = None
 
 
 class AnalyzeResponse(BaseModel):

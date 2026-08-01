@@ -1,5 +1,6 @@
 import os
 import unittest
+from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -19,7 +20,10 @@ class QdrantQueueTest(unittest.TestCase):
             }
         ]
 
-    @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
+    @patch.dict(
+        os.environ,
+        {"QDRANT_ENABLED": "true", "APP_VERSION": "test-version"},
+    )
     @patch("jobs.get_qdrant_queue")
     @patch("jobs.get_final_results_queue")
     @patch("jobs.get_current_job")
@@ -36,9 +40,15 @@ class QdrantQueueTest(unittest.TestCase):
         stream.return_value = self._workflow_updates()
         get_current_job.return_value = SimpleNamespace(id="task-id")
 
-        result = process_analyze_job("Consulta")
+        with patch("jobs.perf_counter", side_effect=[100.0, 100.123]):
+            result = process_analyze_job("Consulta")
 
         self.assertEqual(result["status"], "done")
+        execution = result["execution"]
+        self.assertEqual(execution["duration_ms"], 123)
+        self.assertEqual(execution["app_version"], "test-version")
+        completed_at = datetime.fromisoformat(execution["completed_at"])
+        self.assertIsNotNone(completed_at.tzinfo)
         enqueue = get_qdrant_queue.return_value.enqueue_call
         enqueue.assert_called_once()
         self.assertEqual(

@@ -1,5 +1,7 @@
 import logging
 import os
+from datetime import datetime, timezone
+from time import perf_counter
 
 from rq import Retry, get_current_job
 
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 def process_analyze_job(query: str) -> dict:
+    started_at = perf_counter()
     final_answer = None
     executed_agents = set()
     executed_tools = set()
@@ -79,6 +82,9 @@ def process_analyze_job(query: str) -> dict:
                     exc_info=True,
                 )
 
+    duration_ms = round((perf_counter() - started_at) * 1000)
+    completed_at = datetime.now(timezone.utc).isoformat()
+
     return {
         "status": "done",
         "query": query,
@@ -98,5 +104,8 @@ def process_analyze_job(query: str) -> dict:
             ],
             "agents": sorted(executed_agents),
             "tools": sorted(executed_tools),
+            "duration_ms": duration_ms,
+            "completed_at": completed_at,
+            "app_version": os.getenv("APP_VERSION", "0.0.1"),
         },
     }
