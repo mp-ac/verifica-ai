@@ -36,8 +36,9 @@ O fluxo atual é:
 3. o workflow decide quais agentes executar;
 4. o agente de busca usa ferramentas externas para apuração;
 5. o router sintetiza a resposta final;
-6. se o Qdrant estiver configurado e disponível, a pergunta e a resposta final
-   são armazenadas como um único point na collection.
+6. se o Qdrant estiver habilitado, a persistência da pergunta e da resposta final
+   é enviada para uma fila dedicada;
+7. o worker do Qdrant gera os embeddings e armazena um único point na collection.
 
 O point salvo no Qdrant usa o ID do job RQ como identificador e contém:
 
@@ -123,16 +124,22 @@ SEARCH_BASE_URL=https://seu-endpoint/v1
 
 ### Qdrant
 
-A integração com o Qdrant é opcional. Use `QDRANT_ENABLED=false` para iniciar a
-aplicação sem verificar a collection e concluir as análises sem persistir as
-respostas no Qdrant. Quando habilitada, a aplicação verifica se a collection existe
-durante a inicialização e a cria quando necessário. Se a conexão ou a gravação
-falhar, o erro é registrado nos logs e o fluxo principal continua normalmente.
+A integração com o Qdrant é opcional. Use `QDRANT_ENABLED=false` para concluir as
+análises sem enfileirar a persistência vetorial. Quando habilitada, a resposta final
+é enviada para a fila `qdrant`, sem bloquear a conclusão do job principal. Um
+worker dedicado verifica ou cria a collection, gera os embeddings e persiste o
+point. Falhas nessa etapa seguem a política de retry da fila e não alteram o status
+público da análise.
 
 Exemplo de configuração:
 
 ```env
 QDRANT_ENABLED=true
+QDRANT_QUEUE_NAME="qdrant"
+QDRANT_JOB_TIMEOUT_SECONDS=900
+QDRANT_RESULT_TTL_SECONDS=86400
+QDRANT_FAILURE_TTL_SECONDS=604800
+QDRANT_RETRY_INTERVALS_SECONDS="60,300,900"
 QDRANT_DENSE_MODEL="intfloat/multilingual-e5-large"
 QDRANT_SPARSE_MODEL="Qdrant/bm25"
 QDRANT_COLBERT_MODEL="colbert-ir/colbertv2.0"
@@ -146,8 +153,12 @@ QDRANT_TIMEOUT_SECONDS=60
 
 Cada resposta final é persistida como um único point. A pergunta e a resposta
 são usadas para gerar os embeddings dense, sparse e ColBERT, enquanto as fontes
-e os demais dados permanecem disponíveis no payload. O timeout limita as
-operações de rede realizadas pelo cliente do Qdrant.
+e os demais dados permanecem disponíveis no payload. `QDRANT_TIMEOUT_SECONDS`
+limita cada operação de rede do cliente, enquanto `QDRANT_JOB_TIMEOUT_SECONDS`
+limita o job completo, incluindo carregamento dos modelos e geração dos embeddings.
+
+O serviço `verificaai-qdrant-worker` usa a mesma imagem da API e deve ser executado
+somente nos deployments em que `QDRANT_ENABLED=true`.
 
 ### Entrega dos resultados finais
 

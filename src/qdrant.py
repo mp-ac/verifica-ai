@@ -12,13 +12,14 @@ from fastembed import (
 from qdrant_client import QdrantClient, models
 
 from graph.state import FinalAnswerResult
+from queueing import qdrant_enabled
 
 logger = logging.getLogger(__name__)
 
 load_dotenv()
 
 DENSE_MODEL = os.getenv(
-    "DENSE_MODEL", "intfloat/multilingual-e5-large"
+    "QDRANT_DENSE_MODEL", "intfloat/multilingual-e5-large"
 )
 SPARSE_MODEL = os.getenv(
     "QDRANT_SPARSE_MODEL",
@@ -34,10 +35,6 @@ COLLECTION_NAME = os.getenv(
     "QDRANT_COLLECTION_NAME",
     "chatbot_cac",
 )
-
-
-def qdrant_enabled() -> bool:
-    return os.getenv("QDRANT_ENABLED", "true").strip().lower() == "true"
 
 
 @cache
@@ -108,28 +105,19 @@ def try_ensure_collection() -> bool:
     return True
 
 
-def try_save_final_answer(
+def store_qdrant_result_job(
     query: str,
-    final_answer: FinalAnswerResult,
+    final_answer: dict,
     point_id: str | None = None,
-    collection_name: str = COLLECTION_NAME,
 ) -> str | None:
     if not qdrant_enabled():
         return None
 
-    try:
-        return save_final_answer(
-            query=query,
-            final_answer=final_answer,
-            point_id=point_id,
-            collection_name=collection_name,
-        )
-    except Exception:
-        logger.warning(
-            "Nao foi possivel salvar a resposta final no Qdrant.",
-            exc_info=True,
-        )
-        return None
+    return save_final_answer(
+        query=query,
+        final_answer=FinalAnswerResult.model_validate(final_answer),
+        point_id=point_id,
+    )
 
 
 def save_final_answer(
