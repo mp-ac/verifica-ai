@@ -36,6 +36,10 @@ COLLECTION_NAME = os.getenv(
 )
 
 
+def qdrant_enabled() -> bool:
+    return os.getenv("QDRANT_ENABLED", "true").strip().lower() == "true"
+
+
 @cache
 def get_dense_model() -> TextEmbedding:
     return TextEmbedding(model_name=DENSE_MODEL)
@@ -89,6 +93,9 @@ def ensure_collection(
 
 
 def try_ensure_collection() -> bool:
+    if not qdrant_enabled():
+        return False
+
     try:
         ensure_collection(get_qdrant_client())
     except Exception:
@@ -107,6 +114,9 @@ def try_save_final_answer(
     point_id: str | None = None,
     collection_name: str = COLLECTION_NAME,
 ) -> str | None:
+    if not qdrant_enabled():
+        return None
+
     try:
         return save_final_answer(
             query=query,

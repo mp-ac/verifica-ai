@@ -123,14 +123,16 @@ SEARCH_BASE_URL=https://seu-endpoint/v1
 
 ### Qdrant
 
-A integração com o Qdrant é opcional. Quando configurada, a aplicação verifica
-se a collection existe durante a inicialização e a cria quando necessário. Se a
-conexão ou a gravação falhar, o erro é registrado nos logs e o fluxo principal
-continua normalmente.
+A integração com o Qdrant é opcional. Use `QDRANT_ENABLED=false` para iniciar a
+aplicação sem verificar a collection e concluir as análises sem persistir as
+respostas no Qdrant. Quando habilitada, a aplicação verifica se a collection existe
+durante a inicialização e a cria quando necessário. Se a conexão ou a gravação
+falhar, o erro é registrado nos logs e o fluxo principal continua normalmente.
 
 Exemplo de configuração:
 
 ```env
+QDRANT_ENABLED=true
 QDRANT_DENSE_MODEL="intfloat/multilingual-e5-large"
 QDRANT_SPARSE_MODEL="Qdrant/bm25"
 QDRANT_COLBERT_MODEL="colbert-ir/colbertv2.0"
