@@ -18,8 +18,7 @@ def final_results_api_timeout_seconds() -> float:
 
 def store_final_result_job(
     task_id: str,
-    query: str,
-    final_answer: dict[str, Any],
+    final_result: dict[str, Any],
 ) -> None:
     api_url = final_results_api_url()
     api_token = final_results_api_token()
@@ -33,9 +32,7 @@ def store_final_result_job(
         api_url,
         json={
             "task_id": task_id,
-            "query": query,
-            "final_result": final_answer["answer"],
-            "sources": final_answer.get("sources", []),
+            **final_result,
         },
         headers={
             "Authorization": f"Bearer {api_token}",

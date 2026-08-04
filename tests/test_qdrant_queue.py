@@ -20,6 +20,27 @@ class QdrantQueueTest(unittest.TestCase):
             }
         ]
 
+    def _completed_result(self) -> dict:
+        return {
+            "status": "done",
+            "result": {
+                "query": "Consulta",
+                "final_answer": {
+                    "answer": "Resposta final",
+                    "sources": [],
+                },
+            },
+            "execution": {
+                "models": [],
+                "agents": ["search_agent"],
+                "tools": ["fetch_url"],
+                "duration_ms": 123,
+                "completed_at": "2026-08-04T10:00:00Z",
+                "app_version": "test-version",
+            },
+            "error": None,
+        }
+
     @patch.dict(
         os.environ,
         {"QDRANT_ENABLED": "true", "APP_VERSION": "test-version"},
@@ -61,6 +82,28 @@ class QdrantQueueTest(unittest.TestCase):
                 "Consulta",
                 {"answer": "Resposta final", "sources": []},
                 "task-id",
+            ),
+        )
+        final_results_enqueue = (
+            get_final_results_queue.return_value.enqueue_call
+        )
+        final_results_enqueue.assert_called_once()
+        self.assertEqual(
+            final_results_enqueue.call_args.kwargs["args"],
+            (
+                "task-id",
+                {
+                    "status": "done",
+                    "result": {
+                        "query": "Consulta",
+                        "final_answer": {
+                            "answer": "Resposta final",
+                            "sources": [],
+                        },
+                    },
+                    "execution": execution,
+                    "error": None,
+                },
             ),
         )
 
@@ -147,6 +190,36 @@ class QdrantQueueTest(unittest.TestCase):
                 final_answer={"answer": "Resposta final", "sources": []},
                 point_id="task-id",
             )
+
+    @patch.dict(
+        os.environ,
+        {
+            "FINAL_RESULTS_API_URL": "https://example.test/final-results",
+            "FINAL_RESULTS_API_TOKEN": "secret-token",
+        },
+    )
+    @patch("final_results.requests.post")
+    def test_final_result_job_sends_complete_result(
+        self,
+        post: Mock,
+    ) -> None:
+        from final_results import store_final_result_job
+
+        response = post.return_value
+        final_result = self._completed_result()
+
+        store_final_result_job("task-id", final_result)
+
+        post.assert_called_once_with(
+            "https://example.test/final-results",
+            json={"task_id": "task-id", **final_result},
+            headers={
+                "Authorization": "Bearer secret-token",
+                "Accept": "application/json",
+            },
+            timeout=15,
+        )
+        response.raise_for_status.assert_called_once_with()
 
 
 if __name__ == "__main__":

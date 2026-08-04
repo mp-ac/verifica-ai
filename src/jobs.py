@@ -41,6 +41,40 @@ def process_analyze_job(query: str) -> dict:
             if answer is not None:
                 final_answer = answer
 
+    duration_ms = round((perf_counter() - started_at) * 1000)
+    completed_at = datetime.now(timezone.utc).isoformat()
+    final_answer_data = (
+        final_answer.model_dump() if final_answer is not None else None
+    )
+    execution = {
+        "models": [
+            {
+                "role": "router",
+                "provider": os.getenv("ROUTER_PROVIDER", "vllm"),
+                "model": os.getenv("ROUTER_MODEL", ""),
+            },
+            {
+                "role": "search",
+                "provider": os.getenv("SEARCH_PROVIDER", "vllm"),
+                "model": os.getenv("SEARCH_MODEL", ""),
+            },
+        ],
+        "agents": sorted(executed_agents),
+        "tools": sorted(executed_tools),
+        "duration_ms": duration_ms,
+        "completed_at": completed_at,
+        "app_version": os.getenv("APP_VERSION", "0.0.1"),
+    }
+    completed_result = {
+        "status": "done",
+        "result": {
+            "query": query,
+            "final_answer": final_answer_data,
+        },
+        "execution": execution,
+        "error": None,
+    }
+
     if final_answer is not None:
         job = get_current_job()
 
@@ -48,7 +82,7 @@ def process_analyze_job(query: str) -> dict:
             retry_intervals = final_results_retry_intervals()
             get_final_results_queue().enqueue_call(
                 func=store_final_result_job,
-                args=(job.id, query, final_answer.model_dump()),
+                args=(job.id, completed_result),
                 timeout=final_results_job_timeout_seconds(),
                 result_ttl=final_results_result_ttl_seconds(),
                 failure_ttl=final_results_failure_ttl_seconds(),
@@ -82,30 +116,9 @@ def process_analyze_job(query: str) -> dict:
                     exc_info=True,
                 )
 
-    duration_ms = round((perf_counter() - started_at) * 1000)
-    completed_at = datetime.now(timezone.utc).isoformat()
-
     return {
         "status": "done",
         "query": query,
-        "final_answer": final_answer.model_dump() if final_answer is not None else None,
-        "execution": {
-            "models": [
-                {
-                    "role": "router",
-                    "provider": os.getenv("ROUTER_PROVIDER", "vllm"),
-                    "model": os.getenv("ROUTER_MODEL", ""),
-                },
-                {
-                    "role": "search",
-                    "provider": os.getenv("SEARCH_PROVIDER", "vllm"),
-                    "model": os.getenv("SEARCH_MODEL", ""),
-                },
-            ],
-            "agents": sorted(executed_agents),
-            "tools": sorted(executed_tools),
-            "duration_ms": duration_ms,
-            "completed_at": completed_at,
-            "app_version": os.getenv("APP_VERSION", "0.0.1"),
-        },
+        "final_answer": final_answer_data,
+        "execution": execution,
     }

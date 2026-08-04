@@ -181,6 +181,36 @@ FINAL_RESULTS_API_TIMEOUT_SECONDS=15
 O `endpoint` deve aceitar autenticação Bearer e tratar `task_id` de forma
 idempotente para que novas tentativas não criem resultados duplicados.
 
+O corpo enviado reproduz a resposta final do endpoint `/status`, acrescentando
+o `task_id` da execução:
+
+```json
+{
+  "task_id": "uuid",
+  "status": "done",
+  "result": {
+    "query": "Consulta analisada",
+    "final_answer": {
+      "answer": "Resposta final",
+      "sources": []
+    }
+  },
+  "execution": {
+    "models": [],
+    "agents": [],
+    "tools": [],
+    "duration_ms": 12345,
+    "completed_at": "2026-08-04T12:00:00Z",
+    "app_version": "0.7.1"
+  },
+  "error": null
+}
+```
+
+`duration_ms` mede somente a execução do workflow dos agentes. O tempo de
+enfileiramento, entrega HTTP, geração de embeddings e persistência no Qdrant não
+faz parte dessa duração.
+
 ## Execução local
 
 Com o ambiente configurado:
