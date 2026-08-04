@@ -1,7 +1,7 @@
 [project]
 name = "verifica-ai"
-version = "0.2.0"
-description = ""
+version = "0.8.0"
+description = "Plataforma para apoio ao combate à desinformação"
 readme = "README.md"
 requires-python = ">=3.13"
 license = "AGPL-3.0-only"
