@@ -14,14 +14,16 @@ class AnalyzeRequest(BaseModel):
 
 
 class ExecutionModel(BaseModel):
-    role: Literal["router", "search"]
+    role: Literal["router", "search", "image"]
     provider: str
     model: str
 
 
 class ExecutionMetadata(BaseModel):
     models: list[ExecutionModel] = Field(default_factory=list)
-    agents: list[Literal["search_agent", "transcription_agent"]] = Field(
+    agents: list[
+        Literal["search_agent", "transcription_agent", "image_agent"]
+    ] = Field(
         default_factory=list
     )
     tools: list[str] = Field(default_factory=list)

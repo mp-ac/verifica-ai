@@ -47,3 +47,11 @@ def get_router_settings() -> LLMSettings:
 def get_search_settings() -> LLMSettings:
     """Load search LLM settings from the environment."""
     return _load_role_settings("SEARCH", default_temperature=0.1)
+
+
+def get_image_settings() -> LLMSettings:
+    """Load image LLM settings, falling back to the search model."""
+    if not os.getenv("IMAGE_MODEL", "").strip():
+        return get_search_settings()
+
+    return _load_role_settings("IMAGE", default_temperature=0.1)
