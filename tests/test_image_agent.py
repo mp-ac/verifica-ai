@@ -8,21 +8,6 @@ from graph.state import FinalAnswerResult, ImageAnalysisResult
 
 
 class ImageAgentTest(unittest.TestCase):
-    def test_extracts_image_url_from_query(self) -> None:
-        from agents.image_agent import _extract_image_url
-
-        image_url = _extract_image_url(
-            "Verifique esta imagem: https://example.com/publicacao.jpg."
-        )
-
-        self.assertEqual(image_url, "https://example.com/publicacao.jpg")
-
-    def test_rejects_query_without_image_url(self) -> None:
-        from agents.image_agent import _extract_image_url
-
-        with self.assertRaisesRegex(ValueError, "Nenhuma URL"):
-            _extract_image_url("Analise esta imagem")
-
     @patch("agents.image_agent.load_prompt", return_value="Prompt visual")
     @patch("agents.image_agent.image_llm")
     def test_analyzes_image_and_prepares_search_query(
@@ -41,7 +26,12 @@ class ImageAgentTest(unittest.TestCase):
         )
 
         result = query_image({
-            "query": "https://example.com/publicacao.jpg",
+            "query": "Analise esta imagem",
+            "attachment": {
+                "type": "image",
+                "url": "https://example.com/publicacao.jpg",
+                "origin": "payload",
+            },
         })
 
         image_llm.with_structured_output.assert_called_once_with(
@@ -58,10 +48,26 @@ class ImageAgentTest(unittest.TestCase):
                 },
             },
         )
-        self.assertIn("Vacina causa doença", result["query"])
-        self.assertIn("vacina causa doença evidências oficiais", result["query"])
-        self.assertEqual(result["results"][0]["source"], "image_agent")
+        context = result["media_contexts"][0]
+        self.assertIn("Vacina causa doença", context["result"])
+        self.assertIn(
+            "vacina causa doença evidências oficiais",
+            context["result"],
+        )
+        self.assertEqual(context["source"], "image_agent")
         load_prompt.assert_called_once()
+
+    def test_rejects_non_image_attachment(self) -> None:
+        from agents.image_agent import query_image
+
+        with self.assertRaisesRegex(ValueError, "attachment inválido"):
+            query_image({
+                "query": "Analise este áudio",
+                "attachment": {
+                    "type": "audio",
+                    "url": "https://example.com/audio.ogg",
+                },
+            })
 
     @patch.dict(
         os.environ,
@@ -105,7 +111,13 @@ class ImageAgentTest(unittest.TestCase):
             },
         ]
 
-        result = process_analyze_job("https://example.com/imagem.jpg")
+        result = process_analyze_job(
+            "Analise esta imagem",
+            [{
+                "type": "image",
+                "url": "https://example.com/imagem.jpg",
+            }],
+        )
 
         self.assertEqual(
             result["execution"]["agents"],
@@ -123,6 +135,7 @@ class ImageAgentTest(unittest.TestCase):
             result["execution"]["tools"],
             ["fetch_url", "get_links"],
         )
+        self.assertEqual(result["attachments"][0]["type"], "image")
         get_current_job.assert_called_once()
         get_final_results_queue.assert_not_called()
 

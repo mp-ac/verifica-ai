@@ -1,16 +1,31 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from graph.state import FinalAnswerResult
+from graph.state import Attachment, FinalAnswerResult
 
 
 class AnalyzeRequest(BaseModel):
-    query: str = Field(
+    query: str | None = Field(
+        default=None,
         min_length=1,
         description="Consulta a ser analisada pelo workflow"
     )
+    attachments: list[Attachment] = Field(
+        default_factory=list,
+        description="Conteúdos enviados pelo usuário para análise",
+    )
+
+    @model_validator(mode="after")
+    def validate_content(self) -> "AnalyzeRequest":
+        if self.query is not None:
+            self.query = self.query.strip()
+
+        if not self.query and not self.attachments:
+            raise ValueError("Informe uma query ou ao menos um attachment.")
+
+        return self
 
 
 class ExecutionModel(BaseModel):
@@ -34,6 +49,7 @@ class ExecutionMetadata(BaseModel):
 
 class AnalyzeResponse(BaseModel):
     query: str
+    attachments: list[Attachment] = Field(default_factory=list)
     final_answer: FinalAnswerResult | None = None
 
 

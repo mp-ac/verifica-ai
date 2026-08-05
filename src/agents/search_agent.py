@@ -52,8 +52,9 @@ def _get_used_tools(agent_messages: list) -> list[str]:
 
 def query_search(state: AgentInput) -> dict:
     """Query the Search Agent."""
+    query = state.get("research_query", state["query"])
     result = search_agent.invoke({
-        "messages": [{"role": "user", "content": state["query"]}]
+        "messages": [{"role": "user", "content": query}]
     })
     return {
         "results": [{"source": "search_agent", "result": result["messages"][-1].content}],

@@ -5,6 +5,7 @@ from time import perf_counter
 
 from rq import Retry, get_current_job
 
+from config import ATTACHMENTS_MAX_ITEMS
 from final_results import store_final_result_job
 from graph.workflow import workflow
 from llm_settings import get_image_settings
@@ -21,17 +22,33 @@ from queueing import (
     qdrant_result_ttl_seconds,
     qdrant_retry_intervals,
 )
+from utils.attachments import normalize_attachments
 
 logger = logging.getLogger(__name__)
 
 
-def process_analyze_job(query: str) -> dict:
+def process_analyze_job(
+    query: str | None,
+    attachments: list[dict] | None = None,
+) -> dict:
     started_at = perf_counter()
+    normalized_attachments = normalize_attachments(
+        query,
+        attachments or [],
+        max_items=ATTACHMENTS_MAX_ITEMS,
+    )
+    workflow_query = (query or "").strip() or "Conteúdo enviado para análise"
     final_answer = None
     executed_agents = set()
     executed_tools = set()
 
-    for chunk in workflow.stream({"query": query}, stream_mode="updates"):
+    for chunk in workflow.stream(
+        {
+            "query": workflow_query,
+            "attachments": normalized_attachments,
+        },
+        stream_mode="updates",
+    ):
         for step, data in chunk.items():
             if step in {"search_agent", "transcription_agent", "image_agent"}:
                 executed_agents.add(step)
@@ -81,7 +98,8 @@ def process_analyze_job(query: str) -> dict:
     completed_result = {
         "status": "done",
         "result": {
-            "query": query,
+            "query": workflow_query,
+            "attachments": normalized_attachments,
             "final_answer": final_answer_data,
         },
         "execution": execution,
@@ -111,7 +129,7 @@ def process_analyze_job(query: str) -> dict:
                 get_qdrant_queue().enqueue_call(
                     func="qdrant.store_qdrant_result_job",
                     args=(
-                        query,
+                        workflow_query,
                         final_answer.model_dump(),
                         job.id if job is not None else None,
                     ),
@@ -131,7 +149,8 @@ def process_analyze_job(query: str) -> dict:
 
     return {
         "status": "done",
-        "query": query,
+        "query": workflow_query,
+        "attachments": normalized_attachments,
         "final_answer": final_answer_data,
         "execution": execution,
     }

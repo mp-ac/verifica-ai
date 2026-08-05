@@ -1,14 +1,23 @@
+from config import ATTACHMENTS_MAX_ITEMS
 from graph.workflow import workflow
+from utils.attachments import normalize_attachments
 
 
 query = input("O que você quer procurar? ")
+attachments = normalize_attachments(
+    query,
+    max_items=ATTACHMENTS_MAX_ITEMS,
+)
 
 print("\n" + "=" * 80)
 print("FASE 1 - MENSAGEM DO USUARIO")
 print("=" * 80)
 print(query)
 
-for chunk in workflow.stream({"query": query}, stream_mode="updates"):
+for chunk in workflow.stream(
+    {"query": query, "attachments": attachments},
+    stream_mode="updates",
+):
     for step, data in chunk.items():
         if step == "classify":
             print("\n" + "=" * 80)

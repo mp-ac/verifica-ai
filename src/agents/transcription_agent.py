@@ -2,7 +2,7 @@ from langchain.agents import create_agent
 from langchain_core.messages import ToolMessage
 
 from config import TRANSCRIPTION_AGENT_PROMPT
-from graph.state import AgentInput
+from graph.state import AgentInput, Attachment
 from llm_registry import agent_llm
 from tools.audio_transcription import audio_transcription
 from utils.prompts_util import load_prompt
@@ -27,12 +27,15 @@ def _get_used_tools(agent_messages: list) -> list[str]:
 
 def query_transcription(state: AgentInput) -> dict:
     """Query the Transcription Agent."""
+    attachment = Attachment.model_validate(state.get("attachment"))
+    if attachment.type not in {"audio", "video"}:
+        raise ValueError("O agente de transcrição recebeu um attachment inválido.")
+
     result = transcription_agent.invoke({
-        "messages": [{"role": "user", "content": state["query"]}]
+        "messages": [{"role": "user", "content": str(attachment.url)}]
     })
     return {
-        "query": result["messages"][-1].content,
-        "results": [
+        "media_contexts": [
             {
                 "source": "transcription_agent",
                 "result": result["messages"][-1].content,

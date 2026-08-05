@@ -1,11 +1,26 @@
 import operator
-from typing import Annotated, Literal, TypedDict
-from pydantic import BaseModel, Field
+from typing import Annotated, Literal, NotRequired, TypedDict
+
+from pydantic import AnyHttpUrl, BaseModel, Field
+
+
+AttachmentType = Literal["image", "video", "audio", "web", "unknown"]
+AttachmentOrigin = Literal["payload", "query"]
+
+
+class Attachment(BaseModel):
+    """Content supplied by the user for analysis."""
+    type: AttachmentType = "unknown"
+    url: AnyHttpUrl
+    mime_type: str | None = None
+    origin: AttachmentOrigin = "payload"
 
 
 class AgentInput(TypedDict):
     """Simple input state for each subagent."""
     query: str
+    research_query: NotRequired[str]
+    attachment: NotRequired[dict]
 
 
 class AgentOutput(TypedDict):
@@ -18,6 +33,7 @@ class Classification(TypedDict):
     """A single routing decision: which agent to call with what query."""
     source: Literal["search_agent", "transcription_agent", "image_agent"]
     query: str
+    attachment: NotRequired[dict]
 
 
 class ImageAnalysisResult(BaseModel):
@@ -52,7 +68,10 @@ class FinalAnswerResult(BaseModel):
 
 class RouterState(TypedDict):
     query: str
+    research_query: str
+    attachments: list[dict]
     classifications: list[Classification]
+    media_contexts: Annotated[list[AgentOutput], operator.add]
     results: Annotated[list[AgentOutput], operator.add]
     tools: Annotated[list[str], operator.add]
     debug_events: Annotated[list[str], operator.add]
