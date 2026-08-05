@@ -7,6 +7,7 @@ from rq import Retry, get_current_job
 
 from final_results import store_final_result_job
 from graph.workflow import workflow
+from llm_settings import get_image_settings
 from queueing import (
     final_results_failure_ttl_seconds,
     final_results_job_timeout_seconds,
@@ -32,7 +33,7 @@ def process_analyze_job(query: str) -> dict:
 
     for chunk in workflow.stream({"query": query}, stream_mode="updates"):
         for step, data in chunk.items():
-            if step in {"search_agent", "transcription_agent"}:
+            if step in {"search_agent", "transcription_agent", "image_agent"}:
                 executed_agents.add(step)
 
             executed_tools.update(data.get("tools", []))
@@ -46,19 +47,31 @@ def process_analyze_job(query: str) -> dict:
     final_answer_data = (
         final_answer.model_dump() if final_answer is not None else None
     )
+    execution_models = [
+        {
+            "role": "router",
+            "provider": os.getenv("ROUTER_PROVIDER", "vllm"),
+            "model": os.getenv("ROUTER_MODEL", ""),
+        },
+        {
+            "role": "search",
+            "provider": os.getenv("SEARCH_PROVIDER", "vllm"),
+            "model": os.getenv("SEARCH_MODEL", ""),
+        },
+    ]
+
+    if "image_agent" in executed_agents:
+        image_settings = get_image_settings()
+        execution_models.append(
+            {
+                "role": "image",
+                "provider": image_settings.provider,
+                "model": image_settings.model,
+            }
+        )
+
     execution = {
-        "models": [
-            {
-                "role": "router",
-                "provider": os.getenv("ROUTER_PROVIDER", "vllm"),
-                "model": os.getenv("ROUTER_MODEL", ""),
-            },
-            {
-                "role": "search",
-                "provider": os.getenv("SEARCH_PROVIDER", "vllm"),
-                "model": os.getenv("SEARCH_MODEL", ""),
-            },
-        ],
+        "models": execution_models,
         "agents": sorted(executed_agents),
         "tools": sorted(executed_tools),
         "duration_ms": duration_ms,

@@ -14,6 +14,7 @@ O que existe hoje:
 - workflow em `LangGraph`;
 - roteamento entre agentes por tipo de entrada;
 - agente de busca com ferramentas de data atual, descoberta de links e leitura de páginas;
+- análise de imagens por modelo multimodal antes da pesquisa online;
 - transcrição de áudio por API externa;
 - síntese final estruturada da resposta;
 - persistência opcional das respostas finais no Qdrant;
@@ -25,7 +26,6 @@ O que ainda não existe ou está incompleto:
 - interface web;
 - API `FastAPI`;
 - persistência de casos, protocolos e revisão humana;
-- processamento real de imagem;
 
 ## Como o protótipo funciona
 
@@ -34,11 +34,12 @@ O fluxo atual é:
 1. o usuário digita uma consulta no terminal;
 2. o router classifica a entrada;
 3. o workflow decide quais agentes executar;
-4. o agente de busca usa ferramentas externas para apuração;
-5. o router sintetiza a resposta final;
-6. se o Qdrant estiver habilitado, a persistência da pergunta e da resposta final
+4. entradas de imagem ou áudio são convertidas em contexto textual;
+5. o agente de busca usa ferramentas externas para apuração;
+6. o router sintetiza a resposta final;
+7. se o Qdrant estiver habilitado, a persistência da pergunta e da resposta final
    é enviada para uma fila dedicada;
-7. o worker do Qdrant gera os embeddings e armazena um único point na collection.
+8. o worker do Qdrant gera os embeddings e armazena um único point na collection.
 
 O point salvo no Qdrant usa o ID do job RQ como identificador e contém:
 
@@ -51,13 +52,14 @@ seja repetida.
 Hoje os agentes disponíveis são:
 
 - `search_agent`: faz busca e leitura de fontes;
+- `image_agent`: interpreta uma imagem pública e encaminha suas alegações ao agente de busca;
 - `transcription_agent`: envia uma URL pública de áudio para transcrição e encaminha o texto ao agente de busca.
 
 ## Requisitos
 
 - Python `3.13`
 - `uv` para instalar dependências e executar o projeto
-- acesso a endpoints compatíveis com OpenAI para o router e para o agente de busca
+- acesso aos modelos configurados para o router, a busca e a análise multimodal
 - chave da SerpAPI
 - serviço HTTP para converter URL em markdown, configurado nas variáveis `FETCH_SITE_*`
 - acesso à API de transcrição, configurado nas variáveis `TRANSCRIPTION_*`
@@ -83,6 +85,7 @@ Principais grupos de configuração:
 
 - `ROUTER_*`: configuração da LLM do router.
 - `SEARCH_*`: configuração da LLM do agente de busca.
+- `IMAGE_*`: configuração opcional da LLM multimodal; sem `IMAGE_MODEL`, reutiliza `SEARCH_*`.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
 - `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
@@ -90,15 +93,15 @@ Principais grupos de configuração:
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
-Para `ROUTER_*` e `SEARCH_*`, o contrato é sempre o mesmo:
+Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
 
 - `*_PROVIDER`: `google`, `openai` ou `vllm`
 - `*_MODEL`: nome do modelo
 - `*_API_KEY`: credencial do provider
 - `*_BASE_URL`: endpoint do provider quando ele for OpenAI-compatible
 
-`router` e `search` podem usar providers diferentes. Exemplo: `ROUTER_PROVIDER`
-pode ser `google` enquanto `SEARCH_PROVIDER` continua como `vllm`.
+`router`, `search` e `image` podem usar providers diferentes. O modelo configurado
+em `IMAGE_MODEL` precisa aceitar imagens como entrada.
 
 Regra prática:
 
@@ -120,6 +123,13 @@ SEARCH_PROVIDER=vllm
 SEARCH_MODEL=Qwen/Qwen3-14B-FP8
 SEARCH_API_KEY=sua_chave_vllm
 SEARCH_BASE_URL=https://seu-endpoint/v1
+```
+
+```env
+IMAGE_PROVIDER=google
+IMAGE_MODEL=gemini-2.5-flash
+IMAGE_API_KEY=sua_chave_google
+IMAGE_BASE_URL=
 ```
 
 ### Qdrant
