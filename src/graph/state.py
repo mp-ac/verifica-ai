@@ -16,8 +16,25 @@ class AgentOutput(TypedDict):
 
 class Classification(TypedDict):
     """A single routing decision: which agent to call with what query."""
-    source: Literal["search_agent", "transcription_agent"]
+    source: Literal["search_agent", "transcription_agent", "image_agent"]
     query: str
+
+
+class ImageAnalysisResult(BaseModel):
+    """Structured information extracted from an image for online research."""
+    visible_text: str = Field(
+        description="Texto relevante visível na imagem"
+    )
+    visual_context: str = Field(
+        description="Descrição objetiva do contexto visual relevante"
+    )
+    claims: list[str] = Field(
+        default_factory=list,
+        description="Alegações factuais identificadas na imagem",
+    )
+    research_query: str = Field(
+        description="Consulta textual recomendada para pesquisa online"
+    )
 
 
 class SourceItem(BaseModel):

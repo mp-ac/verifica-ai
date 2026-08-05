@@ -20,9 +20,12 @@ for chunk in workflow.stream({"query": query}, stream_mode="updates"):
             for classification in data.get("classifications", []):
                 print(f"- {classification['source']}: {classification['query']}")
 
-        elif step == "transcription_agent":
+        elif step in {"image_agent", "transcription_agent"}:
+            agent_label = (
+                "IMAGEM" if step == "image_agent" else "TRANSCRICAO"
+            )
             print("\n" + "=" * 80)
-            print("FASE 3 - AGENTE DE TRANSCRICAO EXECUTOU")
+            print(f"FASE 3 - AGENTE DE {agent_label} EXECUTOU")
             print("=" * 80)
             for event in data.get("debug_events", []):
                 print(f"- {event}")
