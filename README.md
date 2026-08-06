@@ -157,6 +157,41 @@ enviados por uma integração devem ser informados em `attachments`:
 }
 ```
 
+Quando a solicitação tiver sido originada por uma pessoa em uma aplicação
+externa, seus identificadores podem ser informados em `requester`:
+
+```json
+{
+  "query": "Essa informação é verdadeira?",
+  "requester": {
+    "external_id": "+5568999999999",
+    "conversation_id": "conversation-id",
+    "message_id": "message-id"
+  }
+}
+```
+
+A aplicação de origem não é aceita no payload. Ela é identificada pelo bearer
+token e acrescentada pelo VerificaAI antes da entrega ao painel. A criação do
+token exige um `name` e gera um `application_id` UUID estável e não secreto.
+O `requester` não é enviado aos modelos nem persistido no Qdrant.
+
+Na entrega do resultado ao painel, o objeto é enriquecido desta forma:
+
+```json
+{
+  "requester": {
+    "application": {
+      "id": "c824bf11-2a72-43dd-919b-a3f76de5fe04",
+      "name": "Agente WhatsApp"
+    },
+    "external_id": "+5568999999999",
+    "conversation_id": "conversation-id",
+    "message_id": "message-id"
+  }
+}
+```
+
 Todos os links HTTP ou HTTPS presentes na `query` também são adicionados
 automaticamente aos anexos. Anexos explícitos e links da consulta são
 deduplicados, mas a `query` original permanece inalterada. O tipo é identificado

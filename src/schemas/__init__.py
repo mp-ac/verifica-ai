@@ -4,6 +4,9 @@ from schemas.api import (
     AnalyzeRequest,
     AnalyzeResponse,
     AnalyzeStatusResponse,
+    Requester,
+    RequesterApplication,
+    RequesterInput,
 )
 
 __all__ = [
@@ -12,4 +15,7 @@ __all__ = [
     "AnalyzeResponse",
     "AnalyzeStatusResponse",
     "Attachment",
+    "Requester",
+    "RequesterApplication",
+    "RequesterInput",
 ]
