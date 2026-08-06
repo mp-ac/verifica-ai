@@ -1,20 +1,10 @@
-import re
-
 from langchain_core.messages import HumanMessage
 
 from config import IMAGE_AGENT_PROMPT
-from graph.state import AgentInput, ImageAnalysisResult
+from graph.state import AgentInput, Attachment, ImageAnalysisResult
 from llm_registry import image_llm
 from utils.prompts_util import load_prompt
-
-
-def _extract_image_url(query: str) -> str:
-    """Extract the first public HTTP(S) URL from the routed query."""
-    match = re.search(r'https?://[^\s<>"\']+', query)
-    if match is None:
-        raise ValueError("Nenhuma URL de imagem foi encontrada na consulta.")
-
-    return match.group(0).rstrip(".,;:!?)]}")
+from utils.token_usage import get_token_usage
 
 
 def _format_analysis(analysis: ImageAnalysisResult) -> str:
@@ -33,9 +23,16 @@ def _format_analysis(analysis: ImageAnalysisResult) -> str:
 
 def query_image(state: AgentInput) -> dict:
     """Analyze an image and prepare its factual claims for online research."""
-    image_url = _extract_image_url(state["query"])
-    structured_llm = image_llm.with_structured_output(ImageAnalysisResult)
-    analysis = structured_llm.invoke([
+    attachment = Attachment.model_validate(state.get("attachment"))
+    if attachment.type != "image":
+        raise ValueError("O agente de imagem recebeu um attachment inválido.")
+
+    image_url = str(attachment.url)
+    structured_llm = image_llm.with_structured_output(
+        ImageAnalysisResult,
+        include_raw=True,
+    )
+    response = structured_llm.invoke([
         {
             "role": "system",
             "content": load_prompt(IMAGE_AGENT_PROMPT),
@@ -56,16 +53,22 @@ def query_image(state: AgentInput) -> dict:
             ]
         ),
     ])
-    formatted_analysis = _format_analysis(analysis)
+    if response["parsing_error"] is not None:
+        raise response["parsing_error"]
+
+    formatted_analysis = _format_analysis(response["parsed"])
 
     return {
-        "query": formatted_analysis,
-        "results": [
+        "media_contexts": [
             {
                 "source": "image_agent",
                 "result": formatted_analysis,
             }
         ],
+        "model_usage": [{
+            "role": "image",
+            **get_token_usage([response["raw"]]),
+        }],
         "debug_events": [
             "Agente de imagem analisou o conteúdo visual e preparou a pesquisa."
         ],

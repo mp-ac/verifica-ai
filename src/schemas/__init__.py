@@ -1,3 +1,4 @@
+from graph.state import Attachment
 from schemas.api import (
     AnalyzeEnqueueResponse,
     AnalyzeRequest,
@@ -10,4 +11,5 @@ __all__ = [
     "AnalyzeRequest",
     "AnalyzeResponse",
     "AnalyzeStatusResponse",
+    "Attachment",
 ]
