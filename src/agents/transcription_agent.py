@@ -6,6 +6,7 @@ from graph.state import AgentInput, Attachment
 from llm_registry import agent_llm
 from tools.audio_transcription import audio_transcription
 from utils.prompts_util import load_prompt
+from utils.token_usage import get_token_usage
 
 transcription_agent = create_agent(
     agent_llm,
@@ -42,5 +43,9 @@ def query_transcription(state: AgentInput) -> dict:
             }
         ],
         "tools": _get_used_tools(result["messages"]),
+        "model_usage": [{
+            "role": "search",
+            **get_token_usage(result["messages"]),
+        }],
         "debug_events": ["Agente de transcrição concluiu a transcrição."],
     }

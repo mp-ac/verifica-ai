@@ -28,10 +28,19 @@ class AnalyzeRequest(BaseModel):
         return self
 
 
+class TokenUsage(BaseModel):
+    input_tokens: int = Field(default=0, ge=0)
+    output_tokens: int = Field(default=0, ge=0)
+    thinking_tokens: int = Field(default=0, ge=0)
+    cached_input_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(default=0, ge=0)
+
+
 class ExecutionModel(BaseModel):
     role: Literal["router", "search", "image"]
     provider: str
     model: str
+    usage: TokenUsage = Field(default_factory=TokenUsage)
 
 
 class ExecutionMetadata(BaseModel):

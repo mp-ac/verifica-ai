@@ -23,6 +23,7 @@ from queueing import (
     qdrant_retry_intervals,
 )
 from utils.attachments import normalize_attachments
+from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,10 @@ def process_analyze_job(
     final_answer = None
     executed_agents = set()
     executed_tools = set()
+    usage_by_role = {
+        role: empty_token_usage()
+        for role in ("router", "search", "image")
+    }
 
     for chunk in workflow.stream(
         {
@@ -54,6 +59,11 @@ def process_analyze_job(
                 executed_agents.add(step)
 
             executed_tools.update(data.get("tools", []))
+
+            for model_usage in data.get("model_usage", []):
+                role = model_usage["role"]
+                for field in TOKEN_USAGE_FIELDS:
+                    usage_by_role[role][field] += model_usage.get(field, 0)
 
             answer = data.get("final_answer")
             if answer is not None:
@@ -69,11 +79,13 @@ def process_analyze_job(
             "role": "router",
             "provider": os.getenv("ROUTER_PROVIDER", "vllm"),
             "model": os.getenv("ROUTER_MODEL", ""),
+            "usage": usage_by_role["router"],
         },
         {
             "role": "search",
             "provider": os.getenv("SEARCH_PROVIDER", "vllm"),
             "model": os.getenv("SEARCH_MODEL", ""),
+            "usage": usage_by_role["search"],
         },
     ]
 
@@ -84,6 +96,7 @@ def process_analyze_job(
                 "role": "image",
                 "provider": image_settings.provider,
                 "model": image_settings.model,
+                "usage": usage_by_role["image"],
             }
         )
 

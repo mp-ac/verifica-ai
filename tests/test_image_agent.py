@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import Mock, patch
 
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 
 from graph.state import FinalAnswerResult, ImageAnalysisResult
 
@@ -18,12 +18,22 @@ class ImageAgentTest(unittest.TestCase):
         from agents.image_agent import query_image
 
         structured_llm = image_llm.with_structured_output.return_value
-        structured_llm.invoke.return_value = ImageAnalysisResult(
-            visible_text="Vacina causa doença",
-            visual_context="Captura de uma publicação em rede social.",
-            claims=["Uma vacina causa determinada doença."],
-            research_query="vacina causa doença evidências oficiais",
-        )
+        structured_llm.invoke.return_value = {
+            "parsed": ImageAnalysisResult(
+                visible_text="Vacina causa doença",
+                visual_context="Captura de uma publicação em rede social.",
+                claims=["Uma vacina causa determinada doença."],
+                research_query="vacina causa doença evidências oficiais",
+            ),
+            "raw": AIMessage(content="", usage_metadata={
+                "input_tokens": 120,
+                "output_tokens": 35,
+                "total_tokens": 155,
+                "input_token_details": {"cache_read": 10},
+                "output_token_details": {"reasoning": 15},
+            }),
+            "parsing_error": None,
+        }
 
         result = query_image({
             "query": "Analise esta imagem",
@@ -35,7 +45,8 @@ class ImageAgentTest(unittest.TestCase):
         })
 
         image_llm.with_structured_output.assert_called_once_with(
-            ImageAnalysisResult
+            ImageAnalysisResult,
+            include_raw=True,
         )
         messages = structured_llm.invoke.call_args.args[0]
         self.assertIsInstance(messages[1], HumanMessage)
@@ -55,6 +66,14 @@ class ImageAgentTest(unittest.TestCase):
             context["result"],
         )
         self.assertEqual(context["source"], "image_agent")
+        self.assertEqual(result["model_usage"], [{
+            "role": "image",
+            "input_tokens": 120,
+            "output_tokens": 35,
+            "thinking_tokens": 15,
+            "cached_input_tokens": 10,
+            "total_tokens": 155,
+        }])
         load_prompt.assert_called_once()
 
     def test_rejects_non_image_attachment(self) -> None:
@@ -93,12 +112,38 @@ class ImageAgentTest(unittest.TestCase):
                 "image_agent": {
                     "query": "Alegação extraída",
                     "results": [],
+                    "model_usage": [{
+                        "role": "image",
+                        "input_tokens": 100,
+                        "output_tokens": 20,
+                        "thinking_tokens": 5,
+                        "cached_input_tokens": 0,
+                        "total_tokens": 120,
+                    }],
                 }
             },
             {
                 "search_agent": {
                     "results": [],
                     "tools": ["get_links", "fetch_url"],
+                    "model_usage": [
+                        {
+                            "role": "search",
+                            "input_tokens": 300,
+                            "output_tokens": 60,
+                            "thinking_tokens": 20,
+                            "cached_input_tokens": 0,
+                            "total_tokens": 360,
+                        },
+                        {
+                            "role": "search",
+                            "input_tokens": 400,
+                            "output_tokens": 80,
+                            "thinking_tokens": 30,
+                            "cached_input_tokens": 25,
+                            "total_tokens": 480,
+                        },
+                    ],
                 }
             },
             {
@@ -106,7 +151,15 @@ class ImageAgentTest(unittest.TestCase):
                     "final_answer": FinalAnswerResult(
                         answer="Resposta",
                         sources=[],
-                    )
+                    ),
+                    "model_usage": [{
+                        "role": "router",
+                        "input_tokens": 200,
+                        "output_tokens": 40,
+                        "thinking_tokens": 10,
+                        "cached_input_tokens": 15,
+                        "total_tokens": 240,
+                    }],
                 }
             },
         ]
@@ -128,9 +181,28 @@ class ImageAgentTest(unittest.TestCase):
                 "role": "image",
                 "provider": "google",
                 "model": "gemini-image-test",
+                "usage": {
+                    "input_tokens": 100,
+                    "output_tokens": 20,
+                    "thinking_tokens": 5,
+                    "cached_input_tokens": 0,
+                    "total_tokens": 120,
+                },
             },
             result["execution"]["models"],
         )
+        search_model = next(
+            model
+            for model in result["execution"]["models"]
+            if model["role"] == "search"
+        )
+        self.assertEqual(search_model["usage"], {
+            "input_tokens": 700,
+            "output_tokens": 140,
+            "thinking_tokens": 50,
+            "cached_input_tokens": 25,
+            "total_tokens": 840,
+        })
         self.assertEqual(
             result["execution"]["tools"],
             ["fetch_url", "get_links"],

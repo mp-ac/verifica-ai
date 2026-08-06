@@ -24,14 +24,20 @@ class AttachmentWorkflowTest(unittest.TestCase):
     ) -> None:
         from graph.workflow import workflow
 
-        image_llm.with_structured_output.return_value.invoke.return_value = (
-            ImageAnalysisResult(
+        image_llm.with_structured_output.return_value.invoke.return_value = {
+            "parsed": ImageAnalysisResult(
                 visible_text="Alegação na imagem",
                 visual_context="Publicação em uma rede social.",
                 claims=["A imagem apresenta uma alegação."],
                 research_query="alegação imagem evidências",
-            )
-        )
+            ),
+            "raw": AIMessage(content="", usage_metadata={
+                "input_tokens": 100,
+                "output_tokens": 20,
+                "total_tokens": 120,
+            }),
+            "parsing_error": None,
+        }
         transcription_agent.invoke.side_effect = [
             {"messages": [AIMessage(content="Transcrição do áudio")]},
             {"messages": [AIMessage(content="Transcrição do vídeo")]},
@@ -39,9 +45,18 @@ class AttachmentWorkflowTest(unittest.TestCase):
         search_agent.invoke.return_value = {
             "messages": [AIMessage(content="Resultado da pesquisa")]
         }
-        router_llm.with_structured_output.return_value.invoke.return_value = (
-            FinalAnswerResult(answer="Resposta consolidada", sources=[])
-        )
+        router_llm.with_structured_output.return_value.invoke.return_value = {
+            "parsed": FinalAnswerResult(
+                answer="Resposta consolidada",
+                sources=[],
+            ),
+            "raw": AIMessage(content="", usage_metadata={
+                "input_tokens": 200,
+                "output_tokens": 40,
+                "total_tokens": 240,
+            }),
+            "parsing_error": None,
+        }
 
         state = workflow.invoke({
             "query": "Verifique os conteúdos enviados",
@@ -74,6 +89,7 @@ class AttachmentWorkflowTest(unittest.TestCase):
         self.assertIn("Transcrição do áudio", research_query)
         self.assertIn("Transcrição do vídeo", research_query)
         self.assertEqual(state["final_answer"].answer, "Resposta consolidada")
+        self.assertEqual(len(state["model_usage"]), 5)
         image_load_prompt.assert_called_once()
         router_load_prompt.assert_called_once()
 

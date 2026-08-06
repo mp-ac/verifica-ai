@@ -29,6 +29,16 @@ class AgentOutput(TypedDict):
     result: str
 
 
+class ModelUsage(TypedDict):
+    """Token usage produced by one or more calls to a model role."""
+    role: Literal["router", "search", "image"]
+    input_tokens: int
+    output_tokens: int
+    thinking_tokens: int
+    cached_input_tokens: int
+    total_tokens: int
+
+
 class Classification(TypedDict):
     """A single routing decision: which agent to call with what query."""
     source: Literal["search_agent", "transcription_agent", "image_agent"]
@@ -74,6 +84,7 @@ class RouterState(TypedDict):
     media_contexts: Annotated[list[AgentOutput], operator.add]
     results: Annotated[list[AgentOutput], operator.add]
     tools: Annotated[list[str], operator.add]
+    model_usage: Annotated[list[ModelUsage], operator.add]
     debug_events: Annotated[list[str], operator.add]
     final_answer: FinalAnswerResult
 

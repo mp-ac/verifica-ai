@@ -240,7 +240,20 @@ o `task_id` da execução:
     }
   },
   "execution": {
-    "models": [],
+    "models": [
+      {
+        "role": "router",
+        "provider": "google",
+        "model": "gemini-3.6-flash",
+        "usage": {
+          "input_tokens": 4250,
+          "output_tokens": 1590,
+          "thinking_tokens": 910,
+          "cached_input_tokens": 0,
+          "total_tokens": 5840
+        }
+      }
+    ],
     "agents": [],
     "tools": [],
     "duration_ms": 12345,
@@ -254,6 +267,10 @@ o `task_id` da execução:
 `duration_ms` mede somente a execução do workflow dos agentes. O tempo de
 enfileiramento, entrega HTTP, geração de embeddings e persistência no Qdrant não
 faz parte dessa duração.
+
+O consumo em `usage` é acumulado por papel de modelo durante toda a execução.
+`thinking_tokens` representa a parcela de raciocínio já incluída em
+`output_tokens`; portanto, os dois campos não devem ser somados novamente.
 
 ## Execução local
 

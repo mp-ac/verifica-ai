@@ -4,6 +4,7 @@ from config import ROUTER_CLASSIFICATION_PROMPT, ROUTER_SYNTHESIS_PROMPT
 from graph.state import ClassificationResult, FinalAnswerResult, RouterState, SourceItem
 from llm_registry import router_llm
 from utils.prompts_util import load_prompt
+from utils.token_usage import get_token_usage
 
 
 MEDIA_AGENT_BY_TYPE = {
@@ -87,9 +88,12 @@ def classify_query(state: RouterState) -> dict:
             ],
         }
 
-    structured_llm = router_llm.with_structured_output(ClassificationResult)
+    structured_llm = router_llm.with_structured_output(
+        ClassificationResult,
+        include_raw=True,
+    )
 
-    result = structured_llm.invoke([
+    response = structured_llm.invoke([
         {
             "role": "system",
             "content": load_prompt(ROUTER_CLASSIFICATION_PROMPT)
@@ -98,8 +102,16 @@ def classify_query(state: RouterState) -> dict:
         {"role": "user", "content": state["query"]}
     ])
 
+    if response["parsing_error"] is not None:
+        raise response["parsing_error"]
+
+    result = response["parsed"]
     return {
         "classifications": result.classifications,
+        "model_usage": [{
+            "role": "router",
+            **get_token_usage([response["raw"]]),
+        }],
         "debug_events": [
             f"Router interpretou a pergunta original: {state['query']}",
             f"Router decidiu as rotas: {[c['source'] for c in result.classifications]}",
@@ -150,9 +162,12 @@ def synthesize_results(state: RouterState) -> dict:
         for r in state["results"]
     ]
 
-    structured_llm = router_llm.with_structured_output(FinalAnswerResult)
+    structured_llm = router_llm.with_structured_output(
+        FinalAnswerResult,
+        include_raw=True,
+    )
 
-    synthesis_response = structured_llm.invoke([
+    response = structured_llm.invoke([
         {
             "role": "system",
             "content": load_prompt(ROUTER_SYNTHESIS_PROMPT).format(
@@ -162,7 +177,14 @@ def synthesize_results(state: RouterState) -> dict:
         {"role": "user", "content": "\n\n".join(formatted)}
     ])
 
+    if response["parsing_error"] is not None:
+        raise response["parsing_error"]
+
     return {
-        "final_answer": synthesis_response,
+        "final_answer": response["parsed"],
+        "model_usage": [{
+            "role": "router",
+            **get_token_usage([response["raw"]]),
+        }],
         "debug_events": ["Router sintetizou a resposta final a partir dos resultados do agente."],
     }

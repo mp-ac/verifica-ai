@@ -4,6 +4,7 @@ from config import IMAGE_AGENT_PROMPT
 from graph.state import AgentInput, Attachment, ImageAnalysisResult
 from llm_registry import image_llm
 from utils.prompts_util import load_prompt
+from utils.token_usage import get_token_usage
 
 
 def _format_analysis(analysis: ImageAnalysisResult) -> str:
@@ -27,8 +28,11 @@ def query_image(state: AgentInput) -> dict:
         raise ValueError("O agente de imagem recebeu um attachment inválido.")
 
     image_url = str(attachment.url)
-    structured_llm = image_llm.with_structured_output(ImageAnalysisResult)
-    analysis = structured_llm.invoke([
+    structured_llm = image_llm.with_structured_output(
+        ImageAnalysisResult,
+        include_raw=True,
+    )
+    response = structured_llm.invoke([
         {
             "role": "system",
             "content": load_prompt(IMAGE_AGENT_PROMPT),
@@ -49,7 +53,10 @@ def query_image(state: AgentInput) -> dict:
             ]
         ),
     ])
-    formatted_analysis = _format_analysis(analysis)
+    if response["parsing_error"] is not None:
+        raise response["parsing_error"]
+
+    formatted_analysis = _format_analysis(response["parsed"])
 
     return {
         "media_contexts": [
@@ -58,6 +65,10 @@ def query_image(state: AgentInput) -> dict:
                 "result": formatted_analysis,
             }
         ],
+        "model_usage": [{
+            "role": "image",
+            **get_token_usage([response["raw"]]),
+        }],
         "debug_events": [
             "Agente de imagem analisou o conteúdo visual e preparou a pesquisa."
         ],
