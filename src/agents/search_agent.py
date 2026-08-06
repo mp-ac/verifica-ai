@@ -8,6 +8,7 @@ from tools.current_date import current_date
 from tools.fetch_url import fetch_url
 from tools.get_links import get_links
 from utils.prompts_util import load_prompt
+from utils.token_usage import get_token_usage
 
 search_agent = create_agent(
     agent_llm,
@@ -52,11 +53,16 @@ def _get_used_tools(agent_messages: list) -> list[str]:
 
 def query_search(state: AgentInput) -> dict:
     """Query the Search Agent."""
+    query = state.get("research_query", state["query"])
     result = search_agent.invoke({
-        "messages": [{"role": "user", "content": state["query"]}]
+        "messages": [{"role": "user", "content": query}]
     })
     return {
         "results": [{"source": "search_agent", "result": result["messages"][-1].content}],
         "tools": _get_used_tools(result["messages"]),
+        "model_usage": [{
+            "role": "search",
+            **get_token_usage(result["messages"]),
+        }],
         "debug_events": _build_debug_events(result["messages"]),
     }

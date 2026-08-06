@@ -21,6 +21,7 @@ from auth import (
     verify_admin_token,
     verify_bearer_token,
 )
+from config import ATTACHMENTS_MAX_ITEMS
 from queueing import (
     failure_ttl_seconds,
     job_timeout_seconds,
@@ -35,6 +36,7 @@ from schemas import (
     AnalyzeResponse,
     AnalyzeStatusResponse,
 )
+from utils.attachments import normalize_attachments
 from utils.job_utils import resolve_job_id
 
 load_dotenv()
@@ -81,9 +83,25 @@ async def analyze(
     _token_data: TokenResponse = Depends(verify_bearer_token),
 ) -> AnalyzeEnqueueResponse:
     try:
+        attachments = normalize_attachments(
+            payload.query,
+            [
+                {
+                    **attachment.model_dump(mode="json"),
+                    "origin": "payload",
+                }
+                for attachment in payload.attachments
+            ],
+            max_items=ATTACHMENTS_MAX_ITEMS,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    try:
         job = q.enqueue(
             process_analyze_job,
             payload.query,
+            attachments,
             job_timeout=job_timeout_seconds(),
             result_ttl=result_ttl_seconds(),
             failure_ttl=failure_ttl_seconds(),
@@ -120,6 +138,7 @@ async def get_status(task_id: str) -> AnalyzeStatusResponse:
             status=result.get("status", "done"),
             result=AnalyzeResponse(
                 query=result.get("query", ""),
+                attachments=result.get("attachments", []),
                 final_answer=result.get("final_answer"),
             ),
             execution=result.get("execution"),

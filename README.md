@@ -16,6 +16,7 @@ O que existe hoje:
 - agente de busca com ferramentas de data atual, descoberta de links e leitura de páginas;
 - análise de imagens por modelo multimodal antes da pesquisa online;
 - transcrição de áudio por API externa;
+- suporte a múltiplos anexos e a links encontrados na consulta;
 - síntese final estruturada da resposta;
 - persistência opcional das respostas finais no Qdrant;
 - geração de embeddings dense, sparse e ColBERT para busca híbrida;
@@ -34,7 +35,7 @@ O fluxo atual é:
 1. o usuário digita uma consulta no terminal;
 2. o router classifica a entrada;
 3. o workflow decide quais agentes executar;
-4. entradas de imagem ou áudio são convertidas em contexto textual;
+4. imagens, áudios e vídeos são processados em paralelo e convertidos em contexto textual;
 5. o agente de busca usa ferramentas externas para apuração;
 6. o router sintetiza a resposta final;
 7. se o Qdrant estiver habilitado, a persistência da pergunta e da resposta final
@@ -53,7 +54,7 @@ Hoje os agentes disponíveis são:
 
 - `search_agent`: faz busca e leitura de fontes;
 - `image_agent`: interpreta uma imagem pública e encaminha suas alegações ao agente de busca;
-- `transcription_agent`: envia uma URL pública de áudio para transcrição e encaminha o texto ao agente de busca.
+- `transcription_agent`: envia URLs públicas de áudio ou vídeo para transcrição e encaminha os textos ao agente de busca.
 
 ## Requisitos
 
@@ -86,6 +87,7 @@ Principais grupos de configuração:
 - `ROUTER_*`: configuração da LLM do router.
 - `SEARCH_*`: configuração da LLM do agente de busca.
 - `IMAGE_*`: configuração opcional da LLM multimodal; sem `IMAGE_MODEL`, reutiliza `SEARCH_*`.
+- `ATTACHMENTS_MAX_ITEMS`: quantidade máxima de conteúdos aceitos em uma análise.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
 - `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
@@ -131,6 +133,37 @@ IMAGE_MODEL=gemini-2.5-flash
 IMAGE_API_KEY=sua_chave_google
 IMAGE_BASE_URL=
 ```
+
+### Conteúdos recebidos
+
+O endpoint `/analyze` aceita texto, anexos ou ambos. Imagens, áudios e vídeos
+enviados por uma integração devem ser informados em `attachments`:
+
+```json
+{
+  "query": "Verifique os conteúdos enviados",
+  "attachments": [
+    {
+      "type": "image",
+      "url": "https://example.com/imagem.jpg",
+      "mime_type": "image/jpeg"
+    },
+    {
+      "type": "audio",
+      "url": "https://example.com/audio.ogg",
+      "mime_type": "audio/ogg"
+    }
+  ]
+}
+```
+
+Todos os links HTTP ou HTTPS presentes na `query` também são adicionados
+automaticamente aos anexos. Anexos explícitos e links da consulta são
+deduplicados, mas a `query` original permanece inalterada. O tipo é identificado
+primeiro pelo MIME type informado e depois pela extensão da URL.
+
+Quando há várias mídias, os agentes especializados processam cada uma e o agente
+de busca recebe uma única consulta com todos os contextos extraídos.
 
 ### Qdrant
 
@@ -200,13 +233,27 @@ o `task_id` da execução:
   "status": "done",
   "result": {
     "query": "Consulta analisada",
+    "attachments": [],
     "final_answer": {
       "answer": "Resposta final",
       "sources": []
     }
   },
   "execution": {
-    "models": [],
+    "models": [
+      {
+        "role": "router",
+        "provider": "google",
+        "model": "gemini-3.6-flash",
+        "usage": {
+          "input_tokens": 4250,
+          "output_tokens": 1590,
+          "thinking_tokens": 910,
+          "cached_input_tokens": 0,
+          "total_tokens": 5840
+        }
+      }
+    ],
     "agents": [],
     "tools": [],
     "duration_ms": 12345,
@@ -220,6 +267,10 @@ o `task_id` da execução:
 `duration_ms` mede somente a execução do workflow dos agentes. O tempo de
 enfileiramento, entrega HTTP, geração de embeddings e persistência no Qdrant não
 faz parte dessa duração.
+
+O consumo em `usage` é acumulado por papel de modelo durante toda a execução.
+`thinking_tokens` representa a parcela de raciocínio já incluída em
+`output_tokens`; portanto, os dois campos não devem ser somados novamente.
 
 ## Execução local
 

@@ -96,6 +96,7 @@ class QdrantQueueTest(unittest.TestCase):
                     "status": "done",
                     "result": {
                         "query": "Consulta",
+                        "attachments": [],
                         "final_answer": {
                             "answer": "Resposta final",
                             "sources": [],
