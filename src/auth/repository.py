@@ -1,6 +1,7 @@
 import sqlite3
 from pathlib import Path
 from typing import List, Optional
+from uuid import uuid4
 
 from fastapi import HTTPException
 
@@ -18,10 +19,46 @@ def init_auth_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS allowed_tokens (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
+              application_id TEXT NOT NULL UNIQUE,
+              name TEXT NOT NULL,
               token TEXT NOT NULL UNIQUE,
               active INTEGER NOT NULL DEFAULT 1,
               created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
+            """
+        )
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(allowed_tokens)")
+        }
+        if "application_id" not in columns:
+            conn.execute(
+                "ALTER TABLE allowed_tokens ADD COLUMN application_id TEXT"
+            )
+        if "name" not in columns:
+            conn.execute("ALTER TABLE allowed_tokens ADD COLUMN name TEXT")
+
+        legacy_tokens = conn.execute(
+            "SELECT id, application_id, name FROM allowed_tokens"
+        ).fetchall()
+        for token_id, application_id, name in legacy_tokens:
+            conn.execute(
+                """
+                UPDATE allowed_tokens
+                SET application_id = ?, name = ?
+                WHERE id = ?
+                """,
+                (
+                    application_id or str(uuid4()),
+                    name or f"Aplicação {token_id}",
+                    token_id,
+                ),
+            )
+        conn.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS
+            allowed_tokens_application_id_unique
+            ON allowed_tokens (application_id)
             """
         )
         conn.commit()
@@ -41,6 +78,8 @@ class TokenRepository:
     def _row_to_token_response(self, row: sqlite3.Row) -> TokenResponse:
         return TokenResponse(
             id=row["id"],
+            application_id=row["application_id"],
+            name=row["name"],
             token=row["token"],
             active=bool(row["active"]),
             created_at=datetime_from_sqlite(row["created_at"]),
@@ -55,7 +94,10 @@ class TokenRepository:
         conn = None
         try:
             conn = self._connect()
-            query = "SELECT id, token, active, created_at FROM allowed_tokens"
+            query = (
+                "SELECT id, application_id, name, token, active, created_at "
+                "FROM allowed_tokens"
+            )
             params: list[object] = []
             if active is not None:
                 query += " WHERE active = ?"
@@ -70,13 +112,21 @@ class TokenRepository:
             if conn is not None:
                 conn.close()
 
-    def create_token(self, token: str, active: bool) -> TokenResponse:
+    def create_token(
+        self,
+        name: str,
+        token: str,
+        active: bool,
+    ) -> TokenResponse:
         conn = None
         try:
             conn = self._connect()
             cursor = conn.execute(
-                "INSERT INTO allowed_tokens (token, active) VALUES (?, ?)",
-                (token, 1 if active else 0),
+                """
+                INSERT INTO allowed_tokens (application_id, name, token, active)
+                VALUES (?, ?, ?, ?)
+                """,
+                (str(uuid4()), name, token, 1 if active else 0),
             )
             conn.commit()
             token_id = cursor.lastrowid
@@ -89,13 +139,30 @@ class TokenRepository:
                 conn.close()
         return self.get_token(token_id)
 
-    def set_active(self, token_id: int, active: bool) -> TokenResponse:
+    def update_token(
+        self,
+        token_id: int,
+        *,
+        name: str | None = None,
+        active: bool | None = None,
+    ) -> TokenResponse:
         conn = None
         try:
             conn = self._connect()
+            updates: list[str] = []
+            params: list[object] = []
+            if name is not None:
+                updates.append("name = ?")
+                params.append(name)
+            if active is not None:
+                updates.append("active = ?")
+                params.append(1 if active else 0)
+            if not updates:
+                return self.get_token(token_id)
+            params.append(token_id)
             cursor = conn.execute(
-                "UPDATE allowed_tokens SET active = ? WHERE id = ?",
-                (1 if active else 0, token_id),
+                f"UPDATE allowed_tokens SET {', '.join(updates)} WHERE id = ?",
+                params,
             )
             conn.commit()
             if cursor.rowcount == 0:
@@ -133,7 +200,11 @@ class TokenRepository:
         try:
             conn = self._connect()
             row = conn.execute(
-                "SELECT id, token, active, created_at FROM allowed_tokens WHERE id = ?",
+                """
+                SELECT id, application_id, name, token, active, created_at
+                FROM allowed_tokens
+                WHERE id = ?
+                """,
                 (token_id,),
             ).fetchone()
             if row is None:
@@ -153,7 +224,7 @@ class TokenRepository:
             conn = self._connect()
             row = conn.execute(
                 """
-                SELECT id, token, active, created_at
+                SELECT id, application_id, name, token, active, created_at
                 FROM allowed_tokens
                 WHERE token = ? AND active = 1
                 """,

@@ -1,9 +1,28 @@
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
 from graph.state import Attachment, FinalAnswerResult
+
+
+class RequesterInput(BaseModel):
+    external_id: str = Field(min_length=1, max_length=255)
+    conversation_id: str | None = Field(default=None, max_length=255)
+    message_id: str | None = Field(default=None, max_length=255)
+
+
+class RequesterApplication(BaseModel):
+    id: UUID
+    name: str
+
+
+class Requester(BaseModel):
+    application: RequesterApplication
+    external_id: str | None = None
+    conversation_id: str | None = None
+    message_id: str | None = None
 
 
 class AnalyzeRequest(BaseModel):
@@ -15,6 +34,10 @@ class AnalyzeRequest(BaseModel):
     attachments: list[Attachment] = Field(
         default_factory=list,
         description="Conteúdos enviados pelo usuário para análise",
+    )
+    requester: RequesterInput | None = Field(
+        default=None,
+        description="Identificação externa de quem originou a solicitação",
     )
 
     @model_validator(mode="after")

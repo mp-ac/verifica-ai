@@ -108,6 +108,48 @@ class QdrantQueueTest(unittest.TestCase):
             ),
         )
 
+    @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
+    @patch("jobs.get_qdrant_queue")
+    @patch("jobs.get_final_results_queue")
+    @patch("jobs.get_current_job")
+    @patch("jobs.workflow.stream")
+    def test_requester_is_delivered_to_panel_but_not_qdrant(
+        self,
+        stream: Mock,
+        get_current_job: Mock,
+        get_final_results_queue: Mock,
+        get_qdrant_queue: Mock,
+    ) -> None:
+        from jobs import process_analyze_job
+
+        stream.return_value = self._workflow_updates()
+        get_current_job.return_value = SimpleNamespace(id="task-id")
+        requester = {
+            "application": {
+                "id": "c824bf11-2a72-43dd-919b-a3f76de5fe04",
+                "name": "Agente WhatsApp",
+            },
+            "external_id": "+5568999999999",
+            "conversation_id": None,
+            "message_id": None,
+        }
+
+        result = process_analyze_job("Consulta", requester=requester)
+
+        self.assertNotIn("requester", result)
+        delivery_args = (
+            get_final_results_queue.return_value.enqueue_call.call_args.kwargs[
+                "args"
+            ]
+        )
+        delivery = delivery_args[1]
+        self.assertEqual(delivery["result"]["requester"], requester)
+        qdrant_args = (
+            get_qdrant_queue.return_value.enqueue_call.call_args.kwargs["args"]
+        )
+        self.assertEqual(len(qdrant_args), 3)
+        self.assertNotIn(requester, qdrant_args)
+
     @patch.dict(os.environ, {"QDRANT_ENABLED": "false"})
     @patch("jobs.get_qdrant_queue")
     @patch("jobs.get_final_results_queue")

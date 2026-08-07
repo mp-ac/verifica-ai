@@ -35,6 +35,8 @@ from schemas import (
     AnalyzeRequest,
     AnalyzeResponse,
     AnalyzeStatusResponse,
+    Requester,
+    RequesterApplication,
 )
 from utils.attachments import normalize_attachments
 from utils.job_utils import resolve_job_id
@@ -80,7 +82,7 @@ async def healthcheck() -> dict:
 @app.post("/analyze", response_model=AnalyzeEnqueueResponse, status_code=202)
 async def analyze(
     payload: AnalyzeRequest,
-    _token_data: TokenResponse = Depends(verify_bearer_token),
+    token_data: TokenResponse = Depends(verify_bearer_token),
 ) -> AnalyzeEnqueueResponse:
     try:
         attachments = normalize_attachments(
@@ -98,10 +100,21 @@ async def analyze(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     try:
+        requester_data = (
+            payload.requester.model_dump() if payload.requester else {}
+        )
+        requester = Requester(
+            application=RequesterApplication(
+                id=token_data.application_id,
+                name=token_data.name,
+            ),
+            **requester_data,
+        ).model_dump(mode="json")
         job = q.enqueue(
             process_analyze_job,
             payload.query,
             attachments,
+            requester,
             job_timeout=job_timeout_seconds(),
             result_ttl=result_ttl_seconds(),
             failure_ttl=failure_ttl_seconds(),
@@ -184,7 +197,11 @@ async def create_token(
     if not token:
         raise HTTPException(status_code=422, detail="Token inválido")
 
-    return repo.create_token(token=token, active=payload.active)
+    return repo.create_token(
+        name=payload.name,
+        token=token,
+        active=payload.active,
+    )
 
 
 @app.patch(
@@ -198,7 +215,11 @@ async def update_token(
     _auth: None = Depends(verify_admin_token),
     repo: TokenRepository = Depends(get_token_repo),
 ) -> TokenResponse:
-    return repo.set_active(token_id=token_id, active=payload.active)
+    return repo.update_token(
+        token_id=token_id,
+        name=payload.name,
+        active=payload.active,
+    )
 
 
 @app.delete(
