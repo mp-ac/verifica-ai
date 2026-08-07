@@ -4,6 +4,8 @@ from dotenv import load_dotenv
 
 
 load_dotenv()
+load_dotenv(".env.transcricao")
+load_dotenv(".env.fetch-site")
 
 ATTACHMENTS_MAX_ITEMS = int(os.getenv("ATTACHMENTS_MAX_ITEMS", "10"))
 
@@ -32,7 +34,7 @@ TRANSCRIPTION_TIMEOUT_SECONDS = float(
 
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 
-FETCH_SITE_BASE_URL = os.getenv("FETCH_SITE_BASE_URL").rstrip("/")
+FETCH_SITE_BASE_URL = (os.getenv("FETCH_SITE_BASE_URL") or "").rstrip("/")
 FETCH_SITE_BEARER_TOKEN = os.getenv("FETCH_SITE_BEARER_TOKEN")
 FETCH_SITE_SUBMIT_URL = os.getenv(
     "FETCH_SITE_SUBMIT_URL",
@@ -42,7 +44,9 @@ FETCH_SITE_STATUS_URL_TEMPLATE = os.getenv(
     "FETCH_SITE_STATUS_URL_TEMPLATE",
     f"{FETCH_SITE_BASE_URL}/status/{{task_id}}",
 )
-FETCH_SITE_TIMEOUT_SECONDS = float(os.getenv("FETCH_SITE_TIMEOUT_SECONDS"))
+FETCH_SITE_TIMEOUT_SECONDS = float(
+    os.getenv("FETCH_SITE_TIMEOUT_SECONDS", "60")
+)
 FETCH_SITE_POLL_INTERVAL_SECONDS = float(
-    os.getenv("FETCH_SITE_POLL_INTERVAL_SECONDS")
+    os.getenv("FETCH_SITE_POLL_INTERVAL_SECONDS", "2")
 )
