@@ -1,11 +1,9 @@
-import os
-from datetime import datetime, timezone
 from time import perf_counter
 
 from config import ATTACHMENTS_MAX_ITEMS
 from graph.workflow import workflow
+from jobs.execution_metadata import build_execution_metadata
 from jobs.result_dispatch import dispatch_completed_result
-from llm_settings import get_image_settings
 from utils.attachments import normalize_attachments
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
@@ -52,45 +50,15 @@ def process_analyze_job(
             if answer is not None:
                 final_answer = answer
 
-    duration_ms = round((perf_counter() - started_at) * 1000)
-    completed_at = datetime.now(timezone.utc).isoformat()
     final_answer_data = (
         final_answer.model_dump() if final_answer is not None else None
     )
-    execution_models = [
-        {
-            "role": "router",
-            "provider": os.getenv("ROUTER_PROVIDER", "vllm"),
-            "model": os.getenv("ROUTER_MODEL", ""),
-            "usage": usage_by_role["router"],
-        },
-        {
-            "role": "search",
-            "provider": os.getenv("SEARCH_PROVIDER", "vllm"),
-            "model": os.getenv("SEARCH_MODEL", ""),
-            "usage": usage_by_role["search"],
-        },
-    ]
-
-    if "image_agent" in executed_agents:
-        image_settings = get_image_settings()
-        execution_models.append(
-            {
-                "role": "image",
-                "provider": image_settings.provider,
-                "model": image_settings.model,
-                "usage": usage_by_role["image"],
-            }
-        )
-
-    execution = {
-        "models": execution_models,
-        "agents": sorted(executed_agents),
-        "tools": sorted(executed_tools),
-        "duration_ms": duration_ms,
-        "completed_at": completed_at,
-        "app_version": os.getenv("APP_VERSION", "0.0.1"),
-    }
+    execution = build_execution_metadata(
+        started_at=started_at,
+        usage_by_role=usage_by_role,
+        executed_agents=executed_agents,
+        executed_tools=executed_tools,
+    )
     completed_result = {
         "status": "done",
         "result": {

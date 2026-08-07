@@ -61,7 +61,13 @@ class QdrantQueueTest(unittest.TestCase):
         stream.return_value = self._workflow_updates()
         get_current_job.return_value = SimpleNamespace(id="task-id")
 
-        with patch("jobs.analyze.perf_counter", side_effect=[100.0, 100.123]):
+        with (
+            patch("jobs.analyze.perf_counter", return_value=100.0),
+            patch(
+                "jobs.execution_metadata.perf_counter",
+                return_value=100.123,
+            ),
+        ):
             result = process_analyze_job("Consulta")
 
         self.assertEqual(result["status"], "done")
