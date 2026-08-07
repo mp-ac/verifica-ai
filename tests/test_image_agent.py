@@ -149,6 +149,7 @@ class ImageAgentTest(unittest.TestCase):
             {
                 "synthesize": {
                     "final_answer": FinalAnswerResult(
+                        title="Análise da imagem",
                         answer="Resposta",
                         sources=[],
                     ),

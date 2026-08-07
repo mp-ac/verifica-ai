@@ -142,10 +142,11 @@ def prepare_search_query(state: RouterState) -> dict:
 
 
 def synthesize_results(state: RouterState) -> dict:
-    """Combine results from all agents into a coherent answer."""
+    """Combine results from all agents into a titled, coherent answer."""
     if not state["results"]:
         return {
             "final_answer": FinalAnswerResult(
+                title="Nenhum resultado encontrado",
                 answer="Nenhum resultado foi encontrado",
                 sources=[
                     SourceItem(
