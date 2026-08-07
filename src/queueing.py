@@ -1,7 +1,12 @@
 import os
 
+from dotenv import load_dotenv
 from redis import Redis
 from rq import Queue
+
+
+load_dotenv()
+load_dotenv(".env.qdrant")
 
 
 def redis_url() -> str:

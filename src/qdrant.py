@@ -17,6 +17,7 @@ from queueing import qdrant_enabled
 logger = logging.getLogger(__name__)
 
 load_dotenv()
+load_dotenv(".env.qdrant")
 
 DENSE_MODEL = os.getenv(
     "QDRANT_DENSE_MODEL", "intfloat/multilingual-e5-large"

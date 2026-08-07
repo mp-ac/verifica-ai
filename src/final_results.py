@@ -1,7 +1,12 @@
 import os
 from typing import Any
 
+from dotenv import load_dotenv
 import requests
+
+
+load_dotenv()
+load_dotenv(".env.painel-api")
 
 
 def final_results_api_url() -> str:
