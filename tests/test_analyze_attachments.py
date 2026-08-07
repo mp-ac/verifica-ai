@@ -1,6 +1,7 @@
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from uuid import UUID
 
 from schemas.api import AnalyzeRequest
 
@@ -24,9 +25,19 @@ class AnalyzeAttachmentsTest(unittest.IsolatedAsyncioTestCase):
                 "mime_type": "audio/ogg",
                 "origin": "query",
             }],
+            requester={
+                "external_id": "+5568999999999",
+                "conversation_id": "conversation-id",
+                "message_id": "message-id",
+            },
         )
 
-        response = await analyze(payload, Mock())
+        application_id = UUID("c824bf11-2a72-43dd-919b-a3f76de5fe04")
+        token_data = SimpleNamespace(
+            application_id=application_id,
+            name="Agente WhatsApp",
+        )
+        response = await analyze(payload, token_data)
 
         self.assertEqual(response.task_id, "task-id")
         enqueue_args = queue.enqueue.call_args.args
@@ -45,6 +56,15 @@ class AnalyzeAttachmentsTest(unittest.IsolatedAsyncioTestCase):
                 "origin": "query",
             },
         ])
+        self.assertEqual(enqueue_args[3], {
+            "application": {
+                "id": str(application_id),
+                "name": "Agente WhatsApp",
+            },
+            "external_id": "+5568999999999",
+            "conversation_id": "conversation-id",
+            "message_id": "message-id",
+        })
 
 
 if __name__ == "__main__":

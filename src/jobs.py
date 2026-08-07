@@ -31,6 +31,7 @@ logger = logging.getLogger(__name__)
 def process_analyze_job(
     query: str | None,
     attachments: list[dict] | None = None,
+    requester: dict | None = None,
 ) -> dict:
     started_at = perf_counter()
     normalized_attachments = normalize_attachments(
@@ -118,6 +119,8 @@ def process_analyze_job(
         "execution": execution,
         "error": None,
     }
+    if requester is not None:
+        completed_result["result"]["requester"] = requester
 
     if final_answer is not None:
         job = get_current_job()
