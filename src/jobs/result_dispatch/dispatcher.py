@@ -1,8 +1,8 @@
 from rq import get_current_job
 
 from graph.state import FinalAnswerResult
-from result_dispatch.panel import enqueue_panel_result
-from result_dispatch.qdrant import enqueue_qdrant_result
+from jobs.result_dispatch.panel import enqueue_panel_result
+from jobs.result_dispatch.qdrant import enqueue_qdrant_result
 
 
 def dispatch_completed_result(

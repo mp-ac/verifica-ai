@@ -4,8 +4,8 @@ from time import perf_counter
 
 from config import ATTACHMENTS_MAX_ITEMS
 from graph.workflow import workflow
+from jobs.result_dispatch import dispatch_completed_result
 from llm_settings import get_image_settings
-from result_dispatch import dispatch_completed_result
 from utils.attachments import normalize_attachments
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
