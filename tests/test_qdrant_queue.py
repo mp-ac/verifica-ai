@@ -45,9 +45,9 @@ class QdrantQueueTest(unittest.TestCase):
         os.environ,
         {"QDRANT_ENABLED": "true", "APP_VERSION": "test-version"},
     )
-    @patch("jobs.get_qdrant_queue")
-    @patch("jobs.get_final_results_queue")
-    @patch("jobs.get_current_job")
+    @patch("result_dispatch.qdrant.get_qdrant_queue")
+    @patch("result_dispatch.panel.get_final_results_queue")
+    @patch("result_dispatch.dispatcher.get_current_job")
     @patch("jobs.workflow.stream")
     def test_process_job_enqueues_qdrant_and_returns_done(
         self,
@@ -109,9 +109,9 @@ class QdrantQueueTest(unittest.TestCase):
         )
 
     @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
-    @patch("jobs.get_qdrant_queue")
-    @patch("jobs.get_final_results_queue")
-    @patch("jobs.get_current_job")
+    @patch("result_dispatch.qdrant.get_qdrant_queue")
+    @patch("result_dispatch.panel.get_final_results_queue")
+    @patch("result_dispatch.dispatcher.get_current_job")
     @patch("jobs.workflow.stream")
     def test_requester_is_delivered_to_panel_but_not_qdrant(
         self,
@@ -151,9 +151,9 @@ class QdrantQueueTest(unittest.TestCase):
         self.assertNotIn(requester, qdrant_args)
 
     @patch.dict(os.environ, {"QDRANT_ENABLED": "false"})
-    @patch("jobs.get_qdrant_queue")
-    @patch("jobs.get_final_results_queue")
-    @patch("jobs.get_current_job")
+    @patch("result_dispatch.qdrant.get_qdrant_queue")
+    @patch("result_dispatch.panel.get_final_results_queue")
+    @patch("result_dispatch.dispatcher.get_current_job")
     @patch("jobs.workflow.stream")
     def test_process_job_skips_qdrant_when_disabled(
         self,
@@ -173,10 +173,10 @@ class QdrantQueueTest(unittest.TestCase):
         get_qdrant_queue.assert_not_called()
 
     @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
-    @patch("jobs.logger")
-    @patch("jobs.get_qdrant_queue")
-    @patch("jobs.get_final_results_queue")
-    @patch("jobs.get_current_job")
+    @patch("result_dispatch.qdrant.logger")
+    @patch("result_dispatch.qdrant.get_qdrant_queue")
+    @patch("result_dispatch.panel.get_final_results_queue")
+    @patch("result_dispatch.dispatcher.get_current_job")
     @patch("jobs.workflow.stream")
     def test_process_job_returns_done_when_qdrant_enqueue_fails(
         self,

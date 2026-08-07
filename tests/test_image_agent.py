@@ -96,8 +96,8 @@ class ImageAgentTest(unittest.TestCase):
             "IMAGE_MODEL": "gemini-image-test",
         },
     )
-    @patch("jobs.get_final_results_queue")
-    @patch("jobs.get_current_job", return_value=None)
+    @patch("result_dispatch.panel.get_final_results_queue")
+    @patch("result_dispatch.dispatcher.get_current_job", return_value=None)
     @patch("jobs.workflow.stream")
     def test_job_records_image_agent_and_model_only_when_executed(
         self,

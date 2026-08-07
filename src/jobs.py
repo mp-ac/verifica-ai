@@ -1,31 +1,13 @@
-import logging
 import os
 from datetime import datetime, timezone
 from time import perf_counter
 
-from rq import Retry, get_current_job
-
 from config import ATTACHMENTS_MAX_ITEMS
-from final_results import store_final_result_job
 from graph.workflow import workflow
 from llm_settings import get_image_settings
-from queueing import (
-    final_results_failure_ttl_seconds,
-    final_results_job_timeout_seconds,
-    final_results_result_ttl_seconds,
-    final_results_retry_intervals,
-    get_final_results_queue,
-    get_qdrant_queue,
-    qdrant_failure_ttl_seconds,
-    qdrant_enabled,
-    qdrant_job_timeout_seconds,
-    qdrant_result_ttl_seconds,
-    qdrant_retry_intervals,
-)
+from result_dispatch import dispatch_completed_result
 from utils.attachments import normalize_attachments
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
-
-logger = logging.getLogger(__name__)
 
 
 def process_analyze_job(
@@ -123,45 +105,11 @@ def process_analyze_job(
         completed_result["result"]["requester"] = requester
 
     if final_answer is not None:
-        job = get_current_job()
-
-        if job is not None:
-            retry_intervals = final_results_retry_intervals()
-            get_final_results_queue().enqueue_call(
-                func=store_final_result_job,
-                args=(job.id, completed_result),
-                timeout=final_results_job_timeout_seconds(),
-                result_ttl=final_results_result_ttl_seconds(),
-                failure_ttl=final_results_failure_ttl_seconds(),
-                retry=Retry(
-                    max=len(retry_intervals),
-                    interval=retry_intervals,
-                ),
-            )
-
-        if qdrant_enabled():
-            try:
-                retry_intervals = qdrant_retry_intervals()
-                get_qdrant_queue().enqueue_call(
-                    func="qdrant.store_qdrant_result_job",
-                    args=(
-                        workflow_query,
-                        final_answer.model_dump(),
-                        job.id if job is not None else None,
-                    ),
-                    timeout=qdrant_job_timeout_seconds(),
-                    result_ttl=qdrant_result_ttl_seconds(),
-                    failure_ttl=qdrant_failure_ttl_seconds(),
-                    retry=Retry(
-                        max=len(retry_intervals),
-                        interval=retry_intervals,
-                    ),
-                )
-            except Exception:
-                logger.warning(
-                    "Nao foi possivel enfileirar a persistencia no Qdrant.",
-                    exc_info=True,
-                )
+        dispatch_completed_result(
+            query=workflow_query,
+            final_answer=final_answer,
+            completed_result=completed_result,
+        )
 
     return {
         "status": "done",
