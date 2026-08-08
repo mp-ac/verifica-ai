@@ -153,7 +153,8 @@ def synthesize_results(state: RouterState) -> dict:
                         title="Sem fontes disponíveis",
                         url=""
                     )
-                ]
+                ],
+                classification=None,
             ),
             "debug_events": ["Nenhum resultado foi devolvido pelos agentes."],
         }

@@ -271,7 +271,9 @@ o `task_id` da execução:
     "attachments": [],
     "final_answer": {
       "answer": "Resposta final",
-      "sources": []
+      "sources": [],
+      "classification": "inconclusivo",
+      "is_classified": true
     }
   },
   "execution": {
