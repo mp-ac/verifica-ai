@@ -1,11 +1,17 @@
 import operator
 from typing import Annotated, Literal, NotRequired, TypedDict
 
-from pydantic import AnyHttpUrl, BaseModel, Field
+from pydantic import AnyHttpUrl, BaseModel, Field, model_validator
 
 
 AttachmentType = Literal["image", "video", "audio", "web", "unknown"]
 AttachmentOrigin = Literal["payload", "query"]
+ClassificationLabel = Literal[
+    "verdadeiro",
+    "falso",
+    "enganoso",
+    "inconclusivo",
+]
 
 
 class Attachment(BaseModel):
@@ -78,6 +84,23 @@ class FinalAnswerResult(BaseModel):
         default_factory=list,
         description="Fontes que foram usadas pelos agentes"
     )
+    classification: ClassificationLabel | None = Field(
+        default=None,
+        description=(
+            "Veredito geral da análise. Use null quando não houver uma "
+            "alegação factual classificável."
+        ),
+    )
+    is_classified: bool = Field(
+        default=False,
+        description="Indica se a análise recebeu um veredito geral.",
+    )
+
+    @model_validator(mode="after")
+    def derive_classification_status(self) -> "FinalAnswerResult":
+        """Keep the boolean consistent with the structured verdict."""
+        self.is_classified = self.classification is not None
+        return self
 
 
 class RouterState(TypedDict):

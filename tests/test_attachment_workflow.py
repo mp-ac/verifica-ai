@@ -50,6 +50,7 @@ class AttachmentWorkflowTest(unittest.TestCase):
                 title="Conteúdos enviados e resultados da pesquisa",
                 answer="Resposta consolidada",
                 sources=[],
+                classification="inconclusivo",
             ),
             "raw": AIMessage(content="", usage_metadata={
                 "input_tokens": 200,
@@ -90,6 +91,11 @@ class AttachmentWorkflowTest(unittest.TestCase):
         self.assertIn("Transcrição do áudio", research_query)
         self.assertIn("Transcrição do vídeo", research_query)
         self.assertEqual(state["final_answer"].answer, "Resposta consolidada")
+        self.assertEqual(
+            state["final_answer"].classification,
+            "inconclusivo",
+        )
+        self.assertTrue(state["final_answer"].is_classified)
         self.assertEqual(
             state["final_answer"].title,
             "Conteúdos enviados e resultados da pesquisa",
