@@ -197,6 +197,12 @@ automaticamente aos anexos. Anexos explícitos e links da consulta são
 deduplicados, mas a `query` original permanece inalterada. O tipo é identificado
 primeiro pelo MIME type informado e depois pela extensão da URL.
 
+Áudios e vídeos destinados à transcrição aceitam somente os formatos `.mpeg`,
+`.ogg`, `.mp3`, `.wav`, `.mp4`, `.avi` e `.webm`. Quando a URL não possui
+extensão, é obrigatório informar um MIME type equivalente a um desses formatos.
+Um formato inválido recebe resposta HTTP `422` antes da criação do job e não é
+enviado aos agentes ou modelos.
+
 Quando há várias mídias, os agentes especializados processam cada uma e o agente
 de busca recebe uma única consulta com todos os contextos extraídos.
 

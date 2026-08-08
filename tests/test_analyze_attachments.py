@@ -3,6 +3,8 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 from uuid import UUID
 
+from fastapi import HTTPException
+
 from schemas.api import AnalyzeRequest
 
 
@@ -65,6 +67,33 @@ class AnalyzeAttachmentsTest(unittest.IsolatedAsyncioTestCase):
             "conversation_id": "conversation-id",
             "message_id": "message-id",
         })
+
+    @patch("main.q")
+    async def test_rejects_unsupported_media_before_enqueue(
+        self,
+        queue: Mock,
+    ) -> None:
+        from main import analyze
+
+        payload = AnalyzeRequest(attachments=[{
+            "type": "audio",
+            "url": "https://example.com/audio.m4a",
+            "mime_type": "audio/mp4",
+        }])
+        token_data = SimpleNamespace(
+            application_id=UUID("c824bf11-2a72-43dd-919b-a3f76de5fe04"),
+            name="Agente WhatsApp",
+        )
+
+        with self.assertRaises(HTTPException) as context:
+            await analyze(payload, token_data)
+
+        self.assertEqual(context.exception.status_code, 422)
+        self.assertIn(
+            "Formato de mídia não suportado: .m4a",
+            context.exception.detail,
+        )
+        queue.enqueue.assert_not_called()
 
 
 if __name__ == "__main__":

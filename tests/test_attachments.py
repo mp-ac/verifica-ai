@@ -7,6 +7,7 @@ from utils.attachments import (
     extract_urls,
     infer_attachment_type,
     normalize_attachments,
+    validate_transcription_format,
 )
 
 
@@ -56,6 +57,54 @@ class AttachmentsTest(unittest.TestCase):
             infer_attachment_type("https://example.com/file.mp4?token=123"),
             "video",
         )
+
+    def test_accepts_supported_transcription_extensions(self) -> None:
+        for extension in (
+            ".mpeg", ".ogg", ".mp3", ".wav", ".mp4", ".avi", ".webm",
+        ):
+            with self.subTest(extension=extension):
+                attachment_type = (
+                    "audio" if extension in {".ogg", ".mp3", ".wav"}
+                    else "video"
+                )
+                attachment = {
+                    "type": attachment_type,
+                    "url": f"https://example.com/file{extension}",
+                }
+
+                normalized = normalize_attachments(None, [attachment])
+
+                self.assertEqual(len(normalized), 1)
+
+    def test_accepts_supported_mime_when_url_has_no_extension(self) -> None:
+        attachments = normalize_attachments(None, [{
+            "type": "audio",
+            "url": "https://example.com/download?token=123",
+            "mime_type": "audio/ogg; codecs=opus",
+        }])
+
+        self.assertEqual(attachments[0]["type"], "audio")
+
+    def test_rejects_unsupported_transcription_extension(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            r"Formato de mídia não suportado: \.m4a",
+        ):
+            normalize_attachments(None, [{
+                "type": "audio",
+                "url": "https://example.com/audio.m4a",
+                "mime_type": "audio/mp4",
+            }])
+
+    def test_rejects_media_without_extension_or_supported_mime(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "Formato de mídia não suportado: não identificado",
+        ):
+            validate_transcription_format(AnalyzeRequest(attachments=[{
+                "type": "audio",
+                "url": "https://example.com/download",
+            }]).attachments[0])
 
     def test_normalization_preserves_query_origin_when_repeated(self) -> None:
         first_pass = normalize_attachments(
