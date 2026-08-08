@@ -47,8 +47,10 @@ class AttachmentWorkflowTest(unittest.TestCase):
         }
         router_llm.with_structured_output.return_value.invoke.return_value = {
             "parsed": FinalAnswerResult(
+                title="Conteúdos enviados e resultados da pesquisa",
                 answer="Resposta consolidada",
                 sources=[],
+                classification="inconclusivo",
             ),
             "raw": AIMessage(content="", usage_metadata={
                 "input_tokens": 200,
@@ -89,6 +91,15 @@ class AttachmentWorkflowTest(unittest.TestCase):
         self.assertIn("Transcrição do áudio", research_query)
         self.assertIn("Transcrição do vídeo", research_query)
         self.assertEqual(state["final_answer"].answer, "Resposta consolidada")
+        self.assertEqual(
+            state["final_answer"].classification,
+            "inconclusivo",
+        )
+        self.assertTrue(state["final_answer"].is_classified)
+        self.assertEqual(
+            state["final_answer"].title,
+            "Conteúdos enviados e resultados da pesquisa",
+        )
         self.assertEqual(len(state["model_usage"]), 5)
         image_load_prompt.assert_called_once()
         router_load_prompt.assert_called_once()

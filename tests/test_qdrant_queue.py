@@ -13,6 +13,7 @@ class QdrantQueueTest(unittest.TestCase):
             {
                 "synthesize": {
                     "final_answer": FinalAnswerResult(
+                        title="Título da resposta",
                         answer="Resposta final",
                         sources=[],
                     )
@@ -26,6 +27,7 @@ class QdrantQueueTest(unittest.TestCase):
             "result": {
                 "query": "Consulta",
                 "final_answer": {
+                    "title": "Título da resposta",
                     "answer": "Resposta final",
                     "sources": [],
                 },
@@ -86,7 +88,13 @@ class QdrantQueueTest(unittest.TestCase):
             enqueue.call_args.kwargs["args"],
             (
                 "Consulta",
-                {"answer": "Resposta final", "sources": []},
+                {
+                    "title": "Título da resposta",
+                    "answer": "Resposta final",
+                    "sources": [],
+                    "classification": None,
+                    "is_classified": False,
+                },
                 "task-id",
             ),
         )
@@ -104,8 +112,11 @@ class QdrantQueueTest(unittest.TestCase):
                         "query": "Consulta",
                         "attachments": [],
                         "final_answer": {
+                            "title": "Título da resposta",
                             "answer": "Resposta final",
                             "sources": [],
+                            "classification": None,
+                            "is_classified": False,
                         },
                     },
                     "execution": execution,
