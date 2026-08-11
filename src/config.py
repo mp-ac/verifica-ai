@@ -18,6 +18,10 @@ IMAGE_AGENT_PROMPT = os.getenv(
     "prompts/image_agent_prompt.md",
 )
 ROUTER_SYNTHESIS_PROMPT = os.getenv("ROUTER_SYNTHESIS_PROMPT")
+REANALYSIS_SYNTHESIS_PROMPT = os.getenv(
+    "REANALYSIS_SYNTHESIS_PROMPT",
+    "prompts/reanalysis_synthesis_prompt.md",
+)
 
 TRANSCRIPTION_REQUEST_URL = os.getenv("TRANSCRIPTION_REQUEST_URL")
 TRANSCRIPTION_STATUS_URL = os.getenv("TRANSCRIPTION_STATUS_URL")
