@@ -1,3 +1,5 @@
+import os
+from typing import Any
 from uuid import UUID
 
 import requests
@@ -12,7 +14,7 @@ from reanalysis.schemas import PanelFinalResult, PanelFinalResultResponse
 
 
 class PanelApiError(RuntimeError):
-    """Raised when the panel cannot provide a valid final result."""
+    """Raised when communication with VerificaAI Painel fails."""
 
 
 class PanelFinalResultNotFoundError(PanelApiError):
@@ -21,6 +23,10 @@ class PanelFinalResultNotFoundError(PanelApiError):
 
 class FinalResultAlreadyReviewedError(PanelApiError):
     """Raised when a human review makes the result ineligible."""
+
+
+def reanalysis_results_api_url() -> str:
+    return os.getenv("REANALYSIS_RESULTS_API_URL", "").strip()
 
 
 def fetch_final_result(final_result_id: UUID) -> PanelFinalResult:
@@ -67,3 +73,31 @@ def fetch_final_result(final_result_id: UUID) -> PanelFinalResult:
         )
 
     return final_result
+
+
+def store_reanalysis_result_job(
+    reanalysis_id: str,
+    task_id: str,
+    completed_result: dict[str, Any],
+) -> None:
+    api_url = reanalysis_results_api_url()
+    api_token = final_results_api_token()
+
+    if not api_url:
+        raise RuntimeError("REANALYSIS_RESULTS_API_URL nao foi configurada.")
+    if not api_token:
+        raise RuntimeError("FINAL_RESULTS_API_TOKEN nao foi configurado.")
+
+    response = requests.put(
+        f"{api_url.rstrip('/')}/{reanalysis_id}/result",
+        json={
+            **completed_result,
+            "task_id": task_id,
+        },
+        headers={
+            "Authorization": f"Bearer {api_token}",
+            "Accept": "application/json",
+        },
+        timeout=final_results_api_timeout_seconds(),
+    )
+    response.raise_for_status()

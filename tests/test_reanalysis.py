@@ -17,6 +17,7 @@ from reanalysis.schemas import PanelFinalResult, ReanalyzeRequest
 
 
 FINAL_RESULT_ID = UUID("c824bf11-2a72-43dd-919b-a3f76de5fe04")
+REANALYSIS_ID = UUID("66c97611-3931-4f96-b963-17f5121b2353")
 
 
 def make_panel_final_result(**overrides) -> PanelFinalResult:
@@ -40,6 +41,7 @@ def make_panel_final_result(**overrides) -> PanelFinalResult:
 class ReanalysisSchemaTest(unittest.TestCase):
     def test_normalizes_prompt(self) -> None:
         payload = ReanalyzeRequest(
+            reanalysis_id=REANALYSIS_ID,
             final_result_id=FINAL_RESULT_ID,
             prompt="  Verifique também o conteúdo semântico.  ",
         )
@@ -52,6 +54,7 @@ class ReanalysisSchemaTest(unittest.TestCase):
     def test_rejects_blank_prompt(self) -> None:
         with self.assertRaises(ValidationError):
             ReanalyzeRequest(
+                reanalysis_id=REANALYSIS_ID,
                 final_result_id=FINAL_RESULT_ID,
                 prompt="   ",
             )
@@ -127,6 +130,118 @@ class PanelIntegrationTest(unittest.TestCase):
         with self.assertRaises(FinalResultAlreadyReviewedError):
             fetch_final_result(FINAL_RESULT_ID)
 
+    @patch.dict(
+        os.environ,
+        {
+            "REANALYSIS_RESULTS_API_URL": (
+                "https://panel.test/api/v1/final-result-reanalyses"
+            ),
+            "FINAL_RESULTS_API_TOKEN": "secret-token",
+            "FINAL_RESULTS_API_TIMEOUT_SECONDS": "15",
+        },
+    )
+    @patch("reanalysis.verificaai_painel.requests.put")
+    def test_stores_reanalysis_result(self, put: Mock) -> None:
+        from reanalysis.verificaai_painel import store_reanalysis_result_job
+
+        completed_result = {
+            "status": "done",
+            "result": {"reanalysis_id": str(REANALYSIS_ID)},
+            "execution": {"duration_ms": 123},
+            "error": None,
+        }
+
+        store_reanalysis_result_job(
+            str(REANALYSIS_ID),
+            "reanalysis-task-id",
+            completed_result,
+        )
+
+        put.assert_called_once_with(
+            (
+                "https://panel.test/api/v1/final-result-reanalyses/"
+                f"{REANALYSIS_ID}/result"
+            ),
+            json={
+                **completed_result,
+                "task_id": "reanalysis-task-id",
+            },
+            headers={
+                "Authorization": "Bearer secret-token",
+                "Accept": "application/json",
+            },
+            timeout=15,
+        )
+        put.return_value.raise_for_status.assert_called_once_with()
+
+
+class ReanalysisResultDeliveryTest(unittest.TestCase):
+    @patch.dict(
+        os.environ,
+        {"FINAL_RESULTS_RETRY_INTERVALS_SECONDS": "10,30,60,300,900"},
+    )
+    @patch("reanalysis.result_delivery.get_final_results_queue")
+    def test_enqueues_completed_result_for_panel_delivery(
+        self,
+        get_queue: Mock,
+    ) -> None:
+        from reanalysis.result_delivery import deliver_completed_reanalysis
+        from reanalysis.verificaai_painel import store_reanalysis_result_job
+
+        completed_result = {
+            "status": "done",
+            "result": {"reanalysis_id": str(REANALYSIS_ID)},
+            "execution": {},
+            "error": None,
+        }
+        job = SimpleNamespace(
+            id="reanalysis-task-id",
+            args=(str(REANALYSIS_ID), {}, "Amplie a pesquisa."),
+        )
+
+        deliver_completed_reanalysis(job, Mock(), completed_result)
+
+        enqueue_call = get_queue.return_value.enqueue_call.call_args.kwargs
+        self.assertIs(enqueue_call["func"], store_reanalysis_result_job)
+        self.assertEqual(
+            enqueue_call["args"],
+            (
+                str(REANALYSIS_ID),
+                "reanalysis-task-id",
+                completed_result,
+            ),
+        )
+        self.assertEqual(enqueue_call["retry"].intervals, [10, 30, 60, 300, 900])
+
+    @patch("reanalysis.result_delivery.enqueue_reanalysis_result")
+    def test_enqueues_failed_result_for_panel_delivery(
+        self,
+        enqueue_result: Mock,
+    ) -> None:
+        from reanalysis.result_delivery import deliver_failed_reanalysis
+
+        job = SimpleNamespace(
+            id="reanalysis-task-id",
+            args=(str(REANALYSIS_ID), {}, "Amplie a pesquisa."),
+        )
+
+        deliver_failed_reanalysis(
+            job,
+            Mock(),
+            RuntimeError,
+            RuntimeError("Falha no workflow."),
+            None,
+        )
+
+        payload = enqueue_result.call_args.kwargs
+        self.assertEqual(payload["reanalysis_id"], str(REANALYSIS_ID))
+        self.assertEqual(payload["task_id"], "reanalysis-task-id")
+        self.assertEqual(payload["completed_result"]["status"], "failed")
+        self.assertEqual(
+            payload["completed_result"]["error"],
+            "Falha no workflow.",
+        )
+
 
 class ReanalysisRoutingTest(unittest.TestCase):
     def _state(self, attachments=None) -> dict:
@@ -177,6 +292,7 @@ class ReanalysisApiTest(unittest.IsolatedAsyncioTestCase):
         fetch_final_result.return_value = final_result
         queue.enqueue.return_value = SimpleNamespace(id="reanalysis-task-id")
         payload = ReanalyzeRequest(
+            reanalysis_id=REANALYSIS_ID,
             final_result_id=FINAL_RESULT_ID,
             prompt="Amplie a pesquisa.",
         )
@@ -186,8 +302,22 @@ class ReanalysisApiTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.task_id, "reanalysis-task-id")
         fetch_final_result.assert_called_once_with(FINAL_RESULT_ID)
         enqueue_args = queue.enqueue.call_args.args
-        self.assertEqual(enqueue_args[1]["id"], str(FINAL_RESULT_ID))
-        self.assertEqual(enqueue_args[2], "Amplie a pesquisa.")
+        self.assertEqual(enqueue_args[1], str(REANALYSIS_ID))
+        self.assertEqual(enqueue_args[2]["id"], str(FINAL_RESULT_ID))
+        self.assertEqual(enqueue_args[3], "Amplie a pesquisa.")
+        enqueue_options = queue.enqueue.call_args.kwargs
+        self.assertEqual(
+            enqueue_options["on_success"].__name__,
+            "deliver_completed_reanalysis",
+        )
+        self.assertEqual(
+            enqueue_options["on_failure"].__name__,
+            "deliver_failed_reanalysis",
+        )
+        self.assertEqual(
+            enqueue_options["on_stopped"].__name__,
+            "deliver_stopped_reanalysis",
+        )
 
     @patch("reanalysis.api.fetch_final_result")
     async def test_returns_conflict_for_human_review(
@@ -203,6 +333,7 @@ class ReanalysisApiTest(unittest.IsolatedAsyncioTestCase):
             "Resultado já revisado."
         )
         payload = ReanalyzeRequest(
+            reanalysis_id=REANALYSIS_ID,
             final_result_id=FINAL_RESULT_ID,
             prompt="Amplie a pesquisa.",
         )
@@ -227,6 +358,7 @@ class ReanalysisApiTest(unittest.IsolatedAsyncioTestCase):
             result={
                 "status": "done",
                 "result": {
+                    "reanalysis_id": str(REANALYSIS_ID),
                     "final_result_id": str(FINAL_RESULT_ID),
                     "prompt": "Amplie a pesquisa.",
                     "final_answer": {
@@ -254,6 +386,7 @@ class ReanalysisApiTest(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(response.status, "done")
+        self.assertEqual(response.result.reanalysis_id, REANALYSIS_ID)
         self.assertEqual(response.result.final_result_id, FINAL_RESULT_ID)
         self.assertEqual(
             response.result.final_answer.classification,
@@ -306,11 +439,16 @@ class ReanalysisJobTest(unittest.TestCase):
         ]
 
         result = process_reanalyze_job(
+            str(REANALYSIS_ID),
             make_panel_final_result().model_dump(mode="json"),
             "Amplie a pesquisa.",
         )
 
         self.assertEqual(result["status"], "done")
+        self.assertEqual(
+            result["result"]["reanalysis_id"],
+            str(REANALYSIS_ID),
+        )
         self.assertEqual(
             result["result"]["final_result_id"],
             str(FINAL_RESULT_ID),

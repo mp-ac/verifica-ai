@@ -4,6 +4,11 @@ from starlette.concurrency import run_in_threadpool
 
 from auth import TokenResponse, verify_bearer_token
 from reanalysis.job import process_reanalyze_job
+from reanalysis.result_delivery import (
+    deliver_completed_reanalysis,
+    deliver_failed_reanalysis,
+    deliver_stopped_reanalysis,
+)
 from reanalysis.schemas import (
     ReanalyzeEnqueueResponse,
     ReanalyzeRequest,
@@ -54,11 +59,15 @@ async def reanalyze(
         job = await run_in_threadpool(
             q.enqueue,
             process_reanalyze_job,
+            str(payload.reanalysis_id),
             final_result.model_dump(mode="json"),
             payload.prompt,
             job_timeout=job_timeout_seconds(),
             result_ttl=result_ttl_seconds(),
             failure_ttl=failure_ttl_seconds(),
+            on_success=deliver_completed_reanalysis,
+            on_failure=deliver_failed_reanalysis,
+            on_stopped=deliver_stopped_reanalysis,
         )
         task_id = resolve_job_id(job)
         if not task_id:

@@ -213,6 +213,7 @@ resultado automático ainda não revisado por uma pessoa:
 
 ```json
 {
+  "reanalysis_id": "66c97611-3931-4f96-b963-17f5121b2353",
   "final_result_id": "c824bf11-2a72-43dd-919b-a3f76de5fe04",
   "prompt": "Verifique também se o fato representado na imagem aconteceu."
 }
@@ -239,8 +240,10 @@ O enqueue responde com HTTP `202`:
 ```
 
 O andamento pode ser consultado, com autenticação, em
-`GET /reanalyze/status/{task_id}`. A persistência definitiva da resposta e o
-relacionamento com o `FinalResult` serão responsabilidade do painel.
+`GET /reanalyze/status/{task_id}`. Ao terminar, o resultado é enviado para
+`REANALYSIS_RESULTS_API_URL/{reanalysis_id}/result` pela mesma fila e pelo mesmo
+worker usados nas entregas ao VerificaAI Painel. Entregas repetidas devem ser
+tratadas de forma idempotente pelo painel.
 
 ### Qdrant
 
@@ -294,6 +297,7 @@ FINAL_RESULTS_RESULT_TTL_SECONDS=86400
 FINAL_RESULTS_FAILURE_TTL_SECONDS=604800
 FINAL_RESULTS_RETRY_INTERVALS_SECONDS="10,30,60,300,900"
 FINAL_RESULTS_API_URL="http://laravel:8002/api/v1/final-results"
+REANALYSIS_RESULTS_API_URL="http://laravel:8002/api/v1/final-result-reanalyses"
 FINAL_RESULTS_API_TOKEN="seu-token"
 FINAL_RESULTS_API_TIMEOUT_SECONDS=15
 ```

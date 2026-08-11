@@ -21,6 +21,7 @@ from schemas.api import ExecutionMetadata
 
 
 class ReanalyzeRequest(BaseModel):
+    reanalysis_id: UUID
     final_result_id: UUID
     prompt: str = Field(min_length=1, max_length=10_000)
 
@@ -72,6 +73,7 @@ class ReanalyzeEnqueueResponse(BaseModel):
 
 
 class ReanalysisResponse(BaseModel):
+    reanalysis_id: UUID
     final_result_id: UUID
     prompt: str
     final_answer: FinalAnswerResult

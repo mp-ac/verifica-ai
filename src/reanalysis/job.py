@@ -7,6 +7,7 @@ from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
 
 def process_reanalyze_job(
+    reanalysis_id: str,
     final_result_data: dict,
     prompt: str,
 ) -> dict:
@@ -59,6 +60,7 @@ def process_reanalyze_job(
     return {
         "status": "done",
         "result": {
+            "reanalysis_id": reanalysis_id,
             "final_result_id": str(original.id),
             "prompt": prompt,
             "final_answer": final_answer.model_dump(mode="json"),
