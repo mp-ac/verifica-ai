@@ -1,4 +1,9 @@
+import logging
+import os
 from time import perf_counter
+
+from langchain_core.tracers.langchain import wait_for_all_tracers
+from rq import get_current_job
 
 from config import ATTACHMENTS_MAX_ITEMS
 from graph.workflow import workflow
@@ -8,10 +13,37 @@ from utils.attachments import normalize_attachments
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
 
+logger = logging.getLogger(__name__)
+
+
 def process_analyze_job(
     query: str | None,
     attachments: list[dict] | None = None,
     requester: dict | None = None,
+) -> dict:
+    job = get_current_job()
+    task_id = job.id if job is not None else None
+    try:
+        return _process_analyze_job(
+            query,
+            attachments,
+            requester,
+            task_id=task_id,
+        )
+    finally:
+        if job is not None:
+            try:
+                wait_for_all_tracers()
+            except Exception:
+                logger.exception("Falha ao finalizar traces do LangSmith.")
+
+
+def _process_analyze_job(
+    query: str | None,
+    attachments: list[dict] | None = None,
+    requester: dict | None = None,
+    *,
+    task_id: str | None = None,
 ) -> dict:
     started_at = perf_counter()
     normalized_attachments = normalize_attachments(
@@ -32,6 +64,14 @@ def process_analyze_job(
         {
             "query": workflow_query,
             "attachments": normalized_attachments,
+        },
+        config={
+            "run_name": "analyze_workflow",
+            "tags": ["flow:analyze"],
+            "metadata": {
+                "task_id": task_id,
+                "app_version": os.getenv("APP_VERSION", "0.0.1"),
+            },
         },
         stream_mode="updates",
     ):

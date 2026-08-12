@@ -50,10 +50,14 @@ class QdrantQueueTest(unittest.TestCase):
     @patch("jobs.result_dispatch.qdrant.get_qdrant_queue")
     @patch("jobs.result_dispatch.panel.get_final_results_queue")
     @patch("jobs.result_dispatch.dispatcher.get_current_job")
+    @patch("jobs.analyze.get_current_job")
+    @patch("jobs.analyze.wait_for_all_tracers")
     @patch("jobs.analyze.workflow.stream")
     def test_process_job_enqueues_qdrant_and_returns_done(
         self,
         stream: Mock,
+        wait_for_tracers: Mock,
+        get_analysis_job: Mock,
         get_current_job: Mock,
         get_final_results_queue: Mock,
         get_qdrant_queue: Mock,
@@ -61,6 +65,7 @@ class QdrantQueueTest(unittest.TestCase):
         from jobs import process_analyze_job
 
         stream.return_value = self._workflow_updates()
+        get_analysis_job.return_value = SimpleNamespace(id="task-id")
         get_current_job.return_value = SimpleNamespace(id="task-id")
 
         with (
@@ -73,6 +78,14 @@ class QdrantQueueTest(unittest.TestCase):
             result = process_analyze_job("Consulta")
 
         self.assertEqual(result["status"], "done")
+        trace_config = stream.call_args.kwargs["config"]
+        self.assertEqual(trace_config["run_name"], "analyze_workflow")
+        self.assertEqual(trace_config["tags"], ["flow:analyze"])
+        self.assertEqual(trace_config["metadata"], {
+            "task_id": "task-id",
+            "app_version": "test-version",
+        })
+        wait_for_tracers.assert_called_once_with()
         execution = result["execution"]
         self.assertEqual(execution["duration_ms"], 123)
         self.assertEqual(execution["app_version"], "test-version")
@@ -166,6 +179,31 @@ class QdrantQueueTest(unittest.TestCase):
         )
         self.assertEqual(len(qdrant_args), 3)
         self.assertNotIn(requester, qdrant_args)
+
+    @patch(
+        "jobs.analyze.wait_for_all_tracers",
+        side_effect=RuntimeError("LangSmith unavailable"),
+    )
+    @patch("jobs.analyze.get_current_job")
+    @patch("jobs.analyze.workflow.stream")
+    def test_trace_flush_failure_does_not_fail_completed_analysis(
+        self,
+        stream: Mock,
+        get_current_job: Mock,
+        _wait_for_tracers: Mock,
+    ) -> None:
+        from jobs import process_analyze_job
+
+        stream.return_value = self._workflow_updates()
+        get_current_job.return_value = SimpleNamespace(id="task-id")
+
+        with (
+            patch("jobs.analyze.dispatch_completed_result"),
+            self.assertLogs("jobs.analyze", level="ERROR"),
+        ):
+            result = process_analyze_job("Consulta")
+
+        self.assertEqual(result["status"], "done")
 
     @patch.dict(os.environ, {"QDRANT_ENABLED": "false"})
     @patch("jobs.result_dispatch.qdrant.get_qdrant_queue")

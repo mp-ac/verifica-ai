@@ -94,6 +94,7 @@ Principais grupos de configuração:
 - `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
 - `FINAL_RESULTS_*`: fila e API de destino das respostas finais.
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
+- `LANGSMITH_*`: tracing opcional dos workflows executados pelos workers.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
 Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
@@ -105,6 +106,25 @@ Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
 
 `router`, `search` e `image` podem usar providers diferentes. O modelo configurado
 em `IMAGE_MODEL` precisa aceitar imagens como entrada.
+
+### LangSmith
+
+O tracing dos workflows é opcional e permanece desabilitado por padrão. Para
+ativá-lo, configure uma chave e habilite o envio:
+
+```env
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=sua_chave_langsmith
+LANGSMITH_PROJECT=verificaai-development
+LANGSMITH_HIDE_INPUTS=true
+LANGSMITH_HIDE_OUTPUTS=true
+```
+
+Cada execução de análise é registrada como `analyze_workflow`, com o `task_id` e
+a versão da aplicação em metadata. Isso permite correlacionar a solicitação
+aceita com a execução do worker. Mantenha `LANGSMITH_HIDE_INPUTS` e
+`LANGSMITH_HIDE_OUTPUTS` habilitados para não enviar consultas, anexos,
+transcrições, prompts, respostas ou retornos de ferramentas ao LangSmith.
 
 Regra prática:
 
