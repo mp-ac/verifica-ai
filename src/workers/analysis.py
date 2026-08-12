@@ -1,3 +1,5 @@
+"""RQ worker for analysis and reanalysis jobs."""
+
 from redis import Redis
 from rq import Queue, Worker
 

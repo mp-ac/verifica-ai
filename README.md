@@ -206,6 +206,45 @@ enviado aos agentes ou modelos.
 Quando há várias mídias, os agentes especializados processam cada uma e o agente
 de busca recebe uma única consulta com todos os contextos extraídos.
 
+### Reanálise
+
+O endpoint autenticado `POST /reanalyze` permite solicitar uma ampliação de um
+resultado automático ainda não revisado por uma pessoa:
+
+```json
+{
+  "reanalysis_id": "66c97611-3931-4f96-b963-17f5121b2353",
+  "final_result_id": "c824bf11-2a72-43dd-919b-a3f76de5fe04",
+  "prompt": "Verifique também se o fato representado na imagem aconteceu."
+}
+```
+
+Antes de enfileirar o job, o VerificaAI consulta o resultado original em
+`FINAL_RESULTS_API_URL/{final_result_id}`. Resultados que já tenham classificação
+humana recebem HTTP `409` e não são enviados aos agentes.
+
+A reanálise utiliza a consulta, a resposta, a classificação, as fontes e os
+anexos do `FinalResult` automático. As mídias originais são processadas novamente
+antes da pesquisa online. A síntese devolvida é uma nova resposta completa: ela
+preserva o conteúdo anterior que continua relevante e incorpora as evidências da
+nova consulta. Conteúdo anterior somente deve ser removido quando a instrução
+humana solicitar ou quando novas evidências exigirem uma correção.
+
+O enqueue responde com HTTP `202`:
+
+```json
+{
+  "task_id": "uuid-do-job",
+  "status": "queued"
+}
+```
+
+O andamento pode ser consultado, com autenticação, em
+`GET /reanalyze/status/{task_id}`. Ao terminar, o resultado é enviado para
+`REANALYSIS_RESULTS_API_URL/{reanalysis_id}/result` pela mesma fila e pelo mesmo
+worker usados nas entregas ao VerificaAI Painel. Entregas repetidas devem ser
+tratadas de forma idempotente pelo painel.
+
 ### Qdrant
 
 A integração com o Qdrant é opcional. Use `QDRANT_ENABLED=false` para concluir as
@@ -258,6 +297,7 @@ FINAL_RESULTS_RESULT_TTL_SECONDS=86400
 FINAL_RESULTS_FAILURE_TTL_SECONDS=604800
 FINAL_RESULTS_RETRY_INTERVALS_SECONDS="10,30,60,300,900"
 FINAL_RESULTS_API_URL="http://laravel:8002/api/v1/final-results"
+REANALYSIS_RESULTS_API_URL="http://laravel:8002/api/v1/final-result-reanalyses"
 FINAL_RESULTS_API_TOKEN="seu-token"
 FINAL_RESULTS_API_TIMEOUT_SECONDS=15
 ```

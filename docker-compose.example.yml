@@ -6,6 +6,8 @@ services:
     container_name: verificaai-api
     env_file:
       - ./.env
+      - ./.env.transcricao
+      - ./.env.fetch-site
     networks:
       - proxy
     ports:
@@ -13,8 +15,11 @@ services:
     environment:
       TZ: ${APP_TZ}
       REDIS_URL: redis://verificaai-redis:6379/0
+      PYTHONPATH: /app/src
     volumes:
       - ./.env:/app/.env
+      - ./.env.transcricao:/app/.env.transcricao
+      - ./.env.fetch-site:/app/.env.fetch-site
       - ./db:/app/db
     depends_on:
       - verificaai-redis
@@ -24,39 +29,50 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: verificaai-worker
     env_file:
       - ./.env
+      - ./.env.qdrant
+      - ./.env.transcricao
+      - ./.env.fetch-site
     networks:
       - proxy
     environment:
       TZ: ${APP_TZ}
       REDIS_URL: redis://verificaai-redis:6379/0
+      PYTHONPATH: /app/src
     volumes:
       - ./.env:/app/.env
+      - ./.env.qdrant:/app/.env.qdrant
+      - ./.env.transcricao:/app/.env.transcricao
+      - ./.env.fetch-site:/app/.env.fetch-site
       - ./db:/app/db
     depends_on:
       - verificaai-redis
-    command: ["/bin/sh", "-c", "exec uv run python src/worker.py"]
+    command: ["/bin/sh", "-c", "exec uv run python -m workers.analysis"]
+    deploy:
+      replicas: 3
     restart: unless-stopped
 
-  verificaai-final-result-worker:
+  verificaai-painel-worker:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: verificaai-final-result-worker
+    container_name: verificaai-painel-worker
     env_file:
       - ./.env
+      - ./.env.painel-api
     networks:
       - proxy
     environment:
       TZ: ${APP_TZ}
       REDIS_URL: redis://verificaai-redis:6379/0
+      PYTHONPATH: /app/src
     volumes:
       - ./.env:/app/.env
+      - ./.env.painel-api:/app/.env.painel-api
     depends_on:
       - verificaai-redis
-    command: ["/bin/sh", "-c", "exec uv run python src/final_result_worker.py"]
+    command: ["/bin/sh", "-c", "exec uv run python -m workers.verificaai_painel"]
     restart: unless-stopped
 
   verificaai-qdrant-worker:
@@ -66,16 +82,19 @@ services:
     container_name: verificaai-qdrant-worker
     env_file:
       - ./.env
+      - ./.env.qdrant
     networks:
       - proxy
     environment:
       TZ: ${APP_TZ}
       REDIS_URL: redis://verificaai-redis:6379/0
+      PYTHONPATH: /app/src
     volumes:
       - ./.env:/app/.env
+      - ./.env.qdrant:/app/.env.qdrant
     depends_on:
       - verificaai-redis
-    command: ["/bin/sh", "-c", "exec uv run python src/qdrant_worker.py"]
+    command: ["/bin/sh", "-c", "exec uv run python -m workers.qdrant"]
     restart: unless-stopped
 
   verificaai-redis:

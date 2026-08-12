@@ -29,6 +29,7 @@ from queueing import (
     redis_url,
     result_ttl_seconds,
 )
+from reanalysis import router as reanalysis_router
 from jobs import process_analyze_job
 from schemas import (
     AnalyzeEnqueueResponse,
@@ -63,6 +64,7 @@ app = FastAPI(
 
 redis_conn = Redis.from_url(redis_url())
 q = Queue(queue_name(), connection=redis_conn)
+app.include_router(reanalysis_router)
 
 
 @app.get("/")

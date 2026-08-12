@@ -256,6 +256,7 @@ class QdrantQueueTest(unittest.TestCase):
         {
             "FINAL_RESULTS_API_URL": "https://example.test/final-results",
             "FINAL_RESULTS_API_TOKEN": "secret-token",
+            "FINAL_RESULTS_API_TIMEOUT_SECONDS": "15",
         },
     )
     @patch("final_results.requests.post")
