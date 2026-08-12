@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -21,6 +22,11 @@ from auth import (
     verify_admin_token,
     verify_bearer_token,
 )
+from analyze_requests import (
+    init_analyze_requests_db,
+    list_accepted_analyze_requests,
+    record_accepted_analyze_request,
+)
 from config import ATTACHMENTS_MAX_ITEMS
 from queueing import (
     failure_ttl_seconds,
@@ -32,6 +38,7 @@ from queueing import (
 from reanalysis import router as reanalysis_router
 from jobs import process_analyze_job
 from schemas import (
+    AcceptedAnalyzeRequestList,
     AnalyzeEnqueueResponse,
     AnalyzeRequest,
     AnalyzeResponse,
@@ -45,6 +52,8 @@ from utils.job_utils import resolve_job_id
 load_dotenv()
 configure_auth(build_auth_config_from_env())
 
+logger = logging.getLogger(__name__)
+
 enable_docs = os.getenv("DOCS_URL_ENABLED", "false").lower() == "true"
 show_admin_docs = os.getenv("ADMIN_DOCS_ENABLED", "false").lower() == "true"
 
@@ -52,6 +61,10 @@ show_admin_docs = os.getenv("ADMIN_DOCS_ENABLED", "false").lower() == "true"
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     init_auth_db()
+    try:
+        init_analyze_requests_db()
+    except Exception:
+        logger.exception("Falha ao inicializar registros de requisicoes aceitas.")
     yield
 
 
@@ -128,6 +141,18 @@ async def analyze(
                 detail="Não foi possível enfileirar o job.",
             )
 
+        try:
+            record_accepted_analyze_request(
+                task_id=task_id,
+                application_id=token_data.application_id,
+                application_name=token_data.name,
+            )
+        except Exception:
+            logger.exception(
+                "Falha ao registrar requisicao aceita: task_id=%s",
+                task_id,
+            )
+
         return AnalyzeEnqueueResponse(task_id=task_id, status="queued")
     except Exception as exc:
         raise HTTPException(
@@ -165,6 +190,37 @@ async def get_status(task_id: str) -> AnalyzeStatusResponse:
         )
 
     return AnalyzeStatusResponse(status=job.get_status(refresh=True))
+
+
+@app.get(
+    "/admin/analyze-requests",
+    response_model=AcceptedAnalyzeRequestList,
+    include_in_schema=show_admin_docs,
+)
+async def list_analyze_requests(
+    _auth: None = Depends(verify_admin_token),
+    application_id: uuid.UUID | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> AcceptedAnalyzeRequestList:
+    try:
+        items, total = list_accepted_analyze_requests(
+            application_id=application_id,
+            limit=limit,
+            offset=offset,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Erro ao listar requisicoes aceitas.",
+        ) from exc
+
+    return AcceptedAnalyzeRequestList(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @app.get(

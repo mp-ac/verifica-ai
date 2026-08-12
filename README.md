@@ -88,6 +88,7 @@ Principais grupos de configuração:
 - `SEARCH_*`: configuração da LLM do agente de busca.
 - `IMAGE_*`: configuração opcional da LLM multimodal; sem `IMAGE_MODEL`, reutiliza `SEARCH_*`.
 - `ATTACHMENTS_MAX_ITEMS`: quantidade máxima de conteúdos aceitos em uma análise.
+- `ANALYZE_REQUESTS_DB_PATH`: banco SQLite dos registros de solicitações aceitas.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
 - `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
@@ -205,6 +206,23 @@ enviado aos agentes ou modelos.
 
 Quando há várias mídias, os agentes especializados processam cada uma e o agente
 de busca recebe uma única consulta com todos os contextos extraídos.
+
+### Solicitações aceitas
+
+Depois que uma chamada autenticada e validada é enfileirada, o VerificaAI
+registra seu `task_id`, a aplicação autenticada e o horário de aceitação no banco
+definido por `ANALYZE_REQUESTS_DB_PATH`. O payload da solicitação não é
+persistido nesse registro. Uma falha nessa gravação é registrada no log, mas não
+altera a resposta `202` nem impede o processamento da análise.
+
+Os registros podem ser consultados com autenticação administrativa:
+
+```text
+GET /admin/analyze-requests?application_id={uuid}&limit=50&offset=0
+```
+
+A resposta inclui `total`, `limit`, `offset` e os itens da página. A rota aparece
+na documentação somente quando `ADMIN_DOCS_ENABLED=true`.
 
 ### Reanálise
 
