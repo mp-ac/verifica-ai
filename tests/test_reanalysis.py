@@ -397,13 +397,18 @@ class ReanalysisApiTest(unittest.IsolatedAsyncioTestCase):
 
 class ReanalysisJobTest(unittest.TestCase):
     @patch.dict(os.environ, {"APP_VERSION": "test-version"})
+    @patch("reanalysis.job.wait_for_all_tracers")
+    @patch("reanalysis.job.get_current_job")
     @patch("reanalysis.job.reanalysis_workflow.stream")
     def test_returns_cumulative_result_with_execution_metadata(
         self,
         stream: Mock,
+        get_current_job: Mock,
+        wait_for_tracers: Mock,
     ) -> None:
         from reanalysis.job import process_reanalyze_job
 
+        get_current_job.return_value = SimpleNamespace(id="reanalysis-task-id")
         stream.return_value = [
             {
                 "search_agent": {
@@ -465,6 +470,50 @@ class ReanalysisJobTest(unittest.TestCase):
             result["execution"]["tools"],
             ["fetch_url", "get_links"],
         )
+        trace_config = stream.call_args.kwargs["config"]
+        self.assertEqual(trace_config["run_name"], "reanalysis_workflow")
+        self.assertEqual(trace_config["tags"], ["flow:reanalysis"])
+        self.assertEqual(trace_config["metadata"], {
+            "task_id": "reanalysis-task-id",
+            "reanalysis_id": str(REANALYSIS_ID),
+            "app_version": "test-version",
+        })
+        wait_for_tracers.assert_called_once_with()
+
+    @patch(
+        "reanalysis.job.wait_for_all_tracers",
+        side_effect=RuntimeError("LangSmith indisponível"),
+    )
+    @patch("reanalysis.job.get_current_job")
+    @patch("reanalysis.job.reanalysis_workflow.stream")
+    def test_trace_flush_failure_does_not_fail_completed_reanalysis(
+        self,
+        stream: Mock,
+        get_current_job: Mock,
+        _wait_for_tracers: Mock,
+    ) -> None:
+        from reanalysis.job import process_reanalyze_job
+
+        get_current_job.return_value = SimpleNamespace(id="reanalysis-task-id")
+        stream.return_value = [{
+            "synthesize": {
+                "final_answer": FinalAnswerResult(
+                    title="Análise ampliada",
+                    answer="Resposta ampliada.",
+                    classification="inconclusivo",
+                    sources=[],
+                ),
+            }
+        }]
+
+        with self.assertLogs("reanalysis.job", level="ERROR"):
+            result = process_reanalyze_job(
+                str(REANALYSIS_ID),
+                make_panel_final_result().model_dump(mode="json"),
+                "Amplie a pesquisa.",
+            )
+
+        self.assertEqual(result["status"], "done")
 
 
 class ReanalysisSynthesisTest(unittest.TestCase):

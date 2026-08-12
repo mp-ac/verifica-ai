@@ -1,4 +1,9 @@
+import logging
+import os
 from time import perf_counter
+
+from langchain_core.tracers.langchain import wait_for_all_tracers
+from rq import get_current_job
 
 from jobs.execution_metadata import build_execution_metadata
 from reanalysis.graph.workflow import reanalysis_workflow
@@ -6,10 +11,39 @@ from reanalysis.schemas import PanelFinalResult
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
 
+logger = logging.getLogger(__name__)
+
+
 def process_reanalyze_job(
     reanalysis_id: str,
     final_result_data: dict,
     prompt: str,
+) -> dict:
+    job = get_current_job()
+    task_id = job.id if job is not None else None
+    try:
+        return _process_reanalyze_job(
+            reanalysis_id,
+            final_result_data,
+            prompt,
+            task_id=task_id,
+        )
+    finally:
+        if job is not None:
+            try:
+                wait_for_all_tracers()
+            except Exception:
+                logger.exception(
+                    "Falha ao finalizar traces da reanálise no LangSmith."
+                )
+
+
+def _process_reanalyze_job(
+    reanalysis_id: str,
+    final_result_data: dict,
+    prompt: str,
+    *,
+    task_id: str | None = None,
 ) -> dict:
     started_at = perf_counter()
     original = PanelFinalResult.model_validate(final_result_data)
@@ -27,6 +61,15 @@ def process_reanalyze_job(
             "prompt": prompt,
             "attachments": original.attachments,
             "original_final_answer": original.to_final_answer(),
+        },
+        config={
+            "run_name": "reanalysis_workflow",
+            "tags": ["flow:reanalysis"],
+            "metadata": {
+                "task_id": task_id,
+                "reanalysis_id": reanalysis_id,
+                "app_version": os.getenv("APP_VERSION", "0.0.1"),
+            },
         },
         stream_mode="updates",
     ):
