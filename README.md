@@ -117,14 +117,22 @@ LANGSMITH_TRACING=true
 LANGSMITH_API_KEY=sua_chave_langsmith
 LANGSMITH_PROJECT=verificaai-development
 LANGSMITH_HIDE_INPUTS=true
-LANGSMITH_HIDE_OUTPUTS=true
+LANGSMITH_HIDE_OUTPUTS=false
 ```
 
 Cada execução de análise é registrada como `analyze_workflow`, com o `task_id` e
 a versão da aplicação em metadata. Isso permite correlacionar a solicitação
-aceita com a execução do worker. Mantenha `LANGSMITH_HIDE_INPUTS` e
-`LANGSMITH_HIDE_OUTPUTS` habilitados para não enviar consultas, anexos,
-transcrições, prompts, respostas ou retornos de ferramentas ao LangSmith.
+aceita com a execução do worker. Com `LANGSMITH_HIDE_INPUTS=true`, consultas,
+anexos, transcrições e prompts ficam ocultos. Com `LANGSMITH_HIDE_OUTPUTS=false`,
+respostas e retornos de ferramentas permanecem disponíveis para observação.
+
+Cada tentativa do worker de entrega ao painel também gera a trace independente
+`verificaai_painel_delivery`, correlacionada pelo mesmo `task_id`. Ela registra
+somente o status HTTP e se o painel respondeu com sucesso (`acknowledged`), sem
+incluir o payload, o token de autenticação ou o corpo da resposta. Uma resposta
+de sucesso confirma o aceite HTTP pelo painel, não uma consulta direta ao banco
+de dados dele. Com `LANGSMITH_HIDE_OUTPUTS=false`, esses campos aparecem no
+output da trace.
 
 Regra prática:
 
