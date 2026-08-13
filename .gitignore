@@ -18,6 +18,8 @@ index_dir
 !.env.example
 !.env.*.example
 .DS_Store
+mpac.json
+gcs-service-account.json
 
 db
 images

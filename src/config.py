@@ -35,6 +35,29 @@ TRANSCRIPTION_POLL_INTERVAL_SECONDS = float(
 TRANSCRIPTION_TIMEOUT_SECONDS = float(
     os.getenv("TRANSCRIPTION_TIMEOUT_SECONDS", "480")
 )
+TRANSCRIPTION_MEDIA_RELAY_ENABLED = (
+    os.getenv("TRANSCRIPTION_MEDIA_RELAY_ENABLED", "false").lower() == "true"
+)
+TRANSCRIPTION_MEDIA_RELAY_ALLOWED_HOSTS = {
+    host.strip().lower()
+    for host in os.getenv(
+        "TRANSCRIPTION_MEDIA_RELAY_ALLOWED_HOSTS",
+        "nat-bot.mpac.mp.br",
+    ).split(",")
+    if host.strip()
+}
+
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
+GCS_OBJECT_PREFIX = os.getenv(
+    "GCS_OBJECT_PREFIX",
+    "transcription-media",
+)
+GCS_SIGNED_URL_TTL_SECONDS = int(
+    os.getenv("GCS_SIGNED_URL_TTL_SECONDS", "900")
+)
+GCS_MEDIA_MAX_SIZE_MIB = int(os.getenv("GCS_MEDIA_MAX_SIZE_MIB", "250"))
+GCS_SERVICE_ACCOUNT_FILE = os.getenv("GCS_SERVICE_ACCOUNT_FILE")
+GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
 
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 

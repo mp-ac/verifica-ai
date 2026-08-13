@@ -92,6 +92,8 @@ Principais grupos de configuração:
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
 - `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
+- `TRANSCRIPTION_MEDIA_RELAY_*` e `GCS_*`: cópia temporária opcional de mídias
+  privadas para um bucket do Google Cloud Storage.
 - `FINAL_RESULTS_*`: fila e API de destino das respostas finais.
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
 - `LANGSMITH_*`: tracing opcional dos workflows executados pelos workers.
@@ -234,6 +236,19 @@ enviado aos agentes ou modelos.
 
 Quando há várias mídias, os agentes especializados processam cada uma e o agente
 de busca recebe uma única consulta com todos os contextos extraídos.
+
+Quando `TRANSCRIPTION_MEDIA_RELAY_ENABLED=true`, áudios e vídeos são baixados
+somente de hosts presentes em `TRANSCRIPTION_MEDIA_RELAY_ALLOWED_HOSTS`, copiados
+para um objeto privado no Google Cloud Storage e enviados à API de transcrição
+por uma URL assinada temporária. A URL original permanece no attachment e o
+objeto temporário é removido ao final da transcrição. O worker de análise deve
+ter acesso às credenciais definidas em `GCS_SERVICE_ACCOUNT_FILE` ou às
+credenciais padrão do ambiente Google Cloud. Em Docker, o arquivo deve ser
+montado no container do worker e a variável deve apontar para o caminho interno.
+O tempo de `GCS_SIGNED_URL_TTL_SECONDS` deve ser maior que
+`TRANSCRIPTION_TIMEOUT_SECONDS`. Também é recomendado configurar uma regra de
+lifecycle no bucket para excluir objetos residuais caso o worker seja encerrado
+antes da limpeza.
 
 ### Solicitações aceitas
 

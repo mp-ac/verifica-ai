@@ -45,6 +45,7 @@ services:
       - ./.env.qdrant:/app/.env.qdrant
       - ./.env.transcricao:/app/.env.transcricao
       - ./.env.fetch-site:/app/.env.fetch-site
+      - ./gcs-service-account.json:/run/secrets/gcs-service-account.json:ro
       - ./db:/app/db
     depends_on:
       - verificaai-redis

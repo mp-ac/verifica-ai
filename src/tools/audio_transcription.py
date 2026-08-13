@@ -11,7 +11,9 @@ from config import (
     TRANSCRIPTION_REQUEST_URL,
     TRANSCRIPTION_STATUS_URL,
     TRANSCRIPTION_TIMEOUT_SECONDS,
+    TRANSCRIPTION_MEDIA_RELAY_ENABLED,
 )
+from integrations.gcs_media_relay import MediaRelayError, temporary_transcription_url
 
 PROCESSING_STATUSES = {"IN_QUEUE", "IN_PROGRESS"}
 FAILURE_STATUSES = {"FAILED", "CANCELLED", "TIMED_OUT"}
@@ -165,9 +167,14 @@ def audio_transcription(file_path: str) -> str:
     """Transcreve o áudio de uma URL pública e retorna seu conteúdo textual."""
 
     try:
-        transcription_id = submit_transcription(file_path)
-        transcription = wait_for_transcription(transcription_id)
-    except TranscriptionError as exc:
+        if TRANSCRIPTION_MEDIA_RELAY_ENABLED:
+            with temporary_transcription_url(file_path) as transcription_url:
+                transcription_id = submit_transcription(transcription_url)
+                transcription = wait_for_transcription(transcription_id)
+        else:
+            transcription_id = submit_transcription(file_path)
+            transcription = wait_for_transcription(transcription_id)
+    except (MediaRelayError, TranscriptionError) as exc:
         return json5.dumps(
             {
                 "url": file_path,

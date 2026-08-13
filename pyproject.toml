@@ -24,6 +24,7 @@ dependencies = [
     "rq>=2.6,<3",
     "uvicorn>=0.35,<1",
     "qdrant-client[fastembed]>=1.16.2",
+    "google-cloud-storage>=3.13.1",
 ]
 
 [dependency-groups]
