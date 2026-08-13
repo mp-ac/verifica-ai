@@ -90,6 +90,20 @@ class AnalyzeEnqueueResponse(BaseModel):
     status: str
 
 
+class AcceptedAnalyzeRequest(BaseModel):
+    task_id: str
+    application_id: UUID
+    application_name: str
+    accepted_at: datetime
+
+
+class AcceptedAnalyzeRequestList(BaseModel):
+    items: list[AcceptedAnalyzeRequest]
+    total: int = Field(ge=0)
+    limit: int = Field(ge=1)
+    offset: int = Field(ge=0)
+
+
 class AnalyzeStatusResponse(BaseModel):
     status: str
     result: AnalyzeResponse | None = None

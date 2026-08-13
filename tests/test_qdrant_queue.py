@@ -50,10 +50,14 @@ class QdrantQueueTest(unittest.TestCase):
     @patch("jobs.result_dispatch.qdrant.get_qdrant_queue")
     @patch("jobs.result_dispatch.panel.get_final_results_queue")
     @patch("jobs.result_dispatch.dispatcher.get_current_job")
+    @patch("jobs.analyze.get_current_job")
+    @patch("jobs.analyze.wait_for_all_tracers")
     @patch("jobs.analyze.workflow.stream")
     def test_process_job_enqueues_qdrant_and_returns_done(
         self,
         stream: Mock,
+        wait_for_tracers: Mock,
+        get_analysis_job: Mock,
         get_current_job: Mock,
         get_final_results_queue: Mock,
         get_qdrant_queue: Mock,
@@ -61,6 +65,7 @@ class QdrantQueueTest(unittest.TestCase):
         from jobs import process_analyze_job
 
         stream.return_value = self._workflow_updates()
+        get_analysis_job.return_value = SimpleNamespace(id="task-id")
         get_current_job.return_value = SimpleNamespace(id="task-id")
 
         with (
@@ -73,6 +78,14 @@ class QdrantQueueTest(unittest.TestCase):
             result = process_analyze_job("Consulta")
 
         self.assertEqual(result["status"], "done")
+        trace_config = stream.call_args.kwargs["config"]
+        self.assertEqual(trace_config["run_name"], "analyze_workflow")
+        self.assertEqual(trace_config["tags"], ["flow:analyze"])
+        self.assertEqual(trace_config["metadata"], {
+            "task_id": "task-id",
+            "app_version": "test-version",
+        })
+        wait_for_tracers.assert_called_once_with()
         execution = result["execution"]
         self.assertEqual(execution["duration_ms"], 123)
         self.assertEqual(execution["app_version"], "test-version")
@@ -167,6 +180,31 @@ class QdrantQueueTest(unittest.TestCase):
         self.assertEqual(len(qdrant_args), 3)
         self.assertNotIn(requester, qdrant_args)
 
+    @patch(
+        "jobs.analyze.wait_for_all_tracers",
+        side_effect=RuntimeError("LangSmith unavailable"),
+    )
+    @patch("jobs.analyze.get_current_job")
+    @patch("jobs.analyze.workflow.stream")
+    def test_trace_flush_failure_does_not_fail_completed_analysis(
+        self,
+        stream: Mock,
+        get_current_job: Mock,
+        _wait_for_tracers: Mock,
+    ) -> None:
+        from jobs import process_analyze_job
+
+        stream.return_value = self._workflow_updates()
+        get_current_job.return_value = SimpleNamespace(id="task-id")
+
+        with (
+            patch("jobs.analyze.dispatch_completed_result"),
+            self.assertLogs("jobs.analyze", level="ERROR"),
+        ):
+            result = process_analyze_job("Consulta")
+
+        self.assertEqual(result["status"], "done")
+
     @patch.dict(os.environ, {"QDRANT_ENABLED": "false"})
     @patch("jobs.result_dispatch.qdrant.get_qdrant_queue")
     @patch("jobs.result_dispatch.panel.get_final_results_queue")
@@ -256,16 +294,31 @@ class QdrantQueueTest(unittest.TestCase):
         {
             "FINAL_RESULTS_API_URL": "https://example.test/final-results",
             "FINAL_RESULTS_API_TOKEN": "secret-token",
+            "FINAL_RESULTS_API_TIMEOUT_SECONDS": "15",
+            "APP_VERSION": "test-version",
         },
     )
+    @patch("final_results.get_current_job")
+    @patch("final_results.wait_for_all_tracers")
+    @patch("final_results.trace")
     @patch("final_results.requests.post")
     def test_final_result_job_sends_complete_result(
         self,
         post: Mock,
+        trace: Mock,
+        wait_for_tracers: Mock,
+        get_current_job: Mock,
     ) -> None:
         from final_results import store_final_result_job
 
         response = post.return_value
+        response.ok = True
+        response.status_code = 201
+        trace_run = trace.return_value.__enter__.return_value
+        get_current_job.return_value = SimpleNamespace(
+            id="delivery-job-id",
+            retries_left=4,
+        )
         final_result = self._completed_result()
 
         store_final_result_job("task-id", final_result)
@@ -280,6 +333,191 @@ class QdrantQueueTest(unittest.TestCase):
             timeout=15,
         )
         response.raise_for_status.assert_called_once_with()
+        trace.assert_called_once_with(
+            "verificaai_painel_delivery",
+            inputs={"task_id": "task-id"},
+            tags=["flow:panel_delivery"],
+            metadata={
+                "task_id": "task-id",
+                "app_version": "test-version",
+                "rq_job_id": "delivery-job-id",
+                "rq_retries_left": 4,
+            },
+            parent="ignore",
+            start_time=trace.call_args.kwargs["start_time"],
+        )
+        trace_run.end.assert_called_once_with(
+            outputs={
+                "acknowledged": True,
+                "http_status": 201,
+            },
+            error=None,
+        )
+        wait_for_tracers.assert_called_once_with()
+
+        traced_data = {
+            **trace.call_args.kwargs["inputs"],
+            **trace.call_args.kwargs["metadata"],
+            **trace_run.end.call_args.kwargs["outputs"],
+        }
+        self.assertNotIn("secret-token", str(traced_data))
+        self.assertNotIn(final_result, traced_data.values())
+
+    @patch.dict(
+        os.environ,
+        {
+            "FINAL_RESULTS_API_URL": "https://example.test/final-results",
+            "FINAL_RESULTS_API_TOKEN": "secret-token",
+        },
+    )
+    @patch("final_results.get_current_job")
+    @patch("final_results.wait_for_all_tracers")
+    @patch("final_results.trace")
+    @patch("final_results.requests.post")
+    def test_final_result_job_traces_rejected_delivery_and_retries(
+        self,
+        post: Mock,
+        trace: Mock,
+        _wait_for_tracers: Mock,
+        get_current_job: Mock,
+    ) -> None:
+        import requests
+
+        from final_results import store_final_result_job
+
+        response = post.return_value
+        response.ok = False
+        response.status_code = 503
+        response.raise_for_status.side_effect = requests.HTTPError(
+            "Painel indisponível"
+        )
+        trace_run = trace.return_value.__enter__.return_value
+        get_current_job.return_value = SimpleNamespace(
+            id="delivery-job-id",
+            retries_left=3,
+        )
+
+        with self.assertRaisesRegex(requests.HTTPError, "Painel indisponível"):
+            store_final_result_job("task-id", self._completed_result())
+
+        trace_run.end.assert_called_once_with(
+            outputs={
+                "acknowledged": False,
+                "http_status": 503,
+            },
+            error="HTTP 503",
+        )
+
+    @patch.dict(
+        os.environ,
+        {
+            "FINAL_RESULTS_API_URL": "https://example.test/final-results",
+            "FINAL_RESULTS_API_TOKEN": "secret-token",
+        },
+    )
+    @patch("final_results.get_current_job")
+    @patch("final_results.wait_for_all_tracers")
+    @patch("final_results.trace")
+    @patch("final_results.requests.post")
+    def test_final_result_job_traces_connection_failure_and_retries(
+        self,
+        post: Mock,
+        trace: Mock,
+        _wait_for_tracers: Mock,
+        get_current_job: Mock,
+    ) -> None:
+        import requests
+
+        from final_results import store_final_result_job
+
+        post.side_effect = requests.ConnectionError("Painel indisponivel")
+        trace_run = trace.return_value.__enter__.return_value
+        get_current_job.return_value = SimpleNamespace(
+            id="delivery-job-id",
+            retries_left=3,
+        )
+
+        with self.assertRaises(requests.ConnectionError):
+            store_final_result_job("task-id", self._completed_result())
+
+        trace_run.end.assert_called_once_with(
+            outputs={
+                "acknowledged": False,
+                "http_status": None,
+            },
+            error="ConnectionError",
+        )
+
+    @patch.dict(
+        os.environ,
+        {
+            "FINAL_RESULTS_API_URL": "https://example.test/final-results",
+            "FINAL_RESULTS_API_TOKEN": "secret-token",
+        },
+    )
+    @patch("final_results.logger")
+    @patch("final_results.get_current_job")
+    @patch("final_results.wait_for_all_tracers")
+    @patch(
+        "final_results.trace",
+        side_effect=RuntimeError("LangSmith indisponivel"),
+    )
+    @patch("final_results.requests.post")
+    def test_trace_failure_does_not_fail_panel_delivery(
+        self,
+        post: Mock,
+        _trace: Mock,
+        _wait_for_tracers: Mock,
+        get_current_job: Mock,
+        logger: Mock,
+    ) -> None:
+        from final_results import store_final_result_job
+
+        post.return_value.ok = True
+        post.return_value.status_code = 201
+        get_current_job.return_value = SimpleNamespace(id="delivery-job-id")
+
+        store_final_result_job("task-id", self._completed_result())
+
+        post.return_value.raise_for_status.assert_called_once_with()
+        logger.exception.assert_called_once_with(
+            "Falha ao registrar trace de entrega ao painel."
+        )
+
+    @patch.dict(
+        os.environ,
+        {
+            "FINAL_RESULTS_API_URL": "https://example.test/final-results",
+            "FINAL_RESULTS_API_TOKEN": "secret-token",
+        },
+    )
+    @patch("final_results.logger")
+    @patch("final_results.get_current_job")
+    @patch(
+        "final_results.wait_for_all_tracers",
+        side_effect=RuntimeError("LangSmith indisponível"),
+    )
+    @patch("final_results.trace")
+    @patch("final_results.requests.post")
+    def test_trace_flush_failure_does_not_fail_panel_delivery(
+        self,
+        post: Mock,
+        _trace: Mock,
+        _wait_for_tracers: Mock,
+        get_current_job: Mock,
+        logger: Mock,
+    ) -> None:
+        from final_results import store_final_result_job
+
+        post.return_value.ok = True
+        post.return_value.status_code = 201
+        get_current_job.return_value = SimpleNamespace(id="delivery-job-id")
+
+        store_final_result_job("task-id", self._completed_result())
+
+        logger.exception.assert_called_once_with(
+            "Falha ao finalizar trace de entrega ao painel."
+        )
 
 
 if __name__ == "__main__":

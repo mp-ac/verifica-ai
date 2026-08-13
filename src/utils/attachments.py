@@ -19,6 +19,29 @@ VIDEO_EXTENSIONS = {
 AUDIO_EXTENSIONS = {
     ".aac", ".flac", ".m4a", ".mp3", ".oga", ".ogg", ".opus", ".wav",
 }
+ALLOWED_TRANSCRIPTION_EXTENSIONS = {
+    ".avi", ".mp3", ".mp4", ".mpeg", ".ogg", ".wav", ".webm",
+}
+ALLOWED_TRANSCRIPTION_MIME_TYPES = {
+    "application/ogg",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/wave",
+    "audio/webm",
+    "audio/x-wav",
+    "audio/vnd.wave",
+    "video/avi",
+    "video/mp4",
+    "video/mpeg",
+    "video/ogg",
+    "video/webm",
+    "video/x-msvideo",
+}
+ALLOWED_TRANSCRIPTION_FORMATS_LABEL = (
+    ".mpeg, .ogg, .mp3, .wav, .mp4, .avi e .webm"
+)
 
 
 def extract_urls(query: str | None) -> list[str]:
@@ -55,6 +78,31 @@ def infer_attachment_type(url: str, mime_type: str | None = None) -> str:
     return "web"
 
 
+def validate_transcription_format(attachment: Attachment) -> None:
+    """Reject unsupported audio and video before they reach the queue."""
+    if attachment.type not in {"audio", "video"}:
+        return
+
+    extension = PurePosixPath(urlsplit(str(attachment.url)).path).suffix.lower()
+    normalized_mime = (
+        (attachment.mime_type or "").split(";", 1)[0].strip().lower()
+    )
+
+    if extension:
+        if extension in ALLOWED_TRANSCRIPTION_EXTENSIONS:
+            return
+        received_format = extension
+    elif normalized_mime in ALLOWED_TRANSCRIPTION_MIME_TYPES:
+        return
+    else:
+        received_format = normalized_mime or "não identificado"
+
+    raise ValueError(
+        f"Formato de mídia não suportado: {received_format}. "
+        f"Formatos aceitos: {ALLOWED_TRANSCRIPTION_FORMATS_LABEL}."
+    )
+
+
 def normalize_attachments(
     query: str | None,
     attachments: Iterable[Attachment | dict] = (),
@@ -72,6 +120,7 @@ def normalize_attachments(
                 str(attachment.url),
                 attachment.mime_type,
             )
+        validate_transcription_format(attachment)
 
         url = str(attachment.url)
         if url in seen_urls:
@@ -86,6 +135,7 @@ def normalize_attachments(
             url=url,
             origin="query",
         )
+        validate_transcription_format(attachment)
         normalized_url = str(attachment.url)
         if normalized_url in seen_urls:
             continue

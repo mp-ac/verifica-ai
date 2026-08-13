@@ -1,3 +1,5 @@
+"""RQ worker for results sent to VerificaAI Painel."""
+
 from redis import Redis
 from rq import Queue, Worker
 

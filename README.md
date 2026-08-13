@@ -88,11 +88,13 @@ Principais grupos de configuração:
 - `SEARCH_*`: configuração da LLM do agente de busca.
 - `IMAGE_*`: configuração opcional da LLM multimodal; sem `IMAGE_MODEL`, reutiliza `SEARCH_*`.
 - `ATTACHMENTS_MAX_ITEMS`: quantidade máxima de conteúdos aceitos em uma análise.
+- `ANALYZE_REQUESTS_DB_PATH`: banco SQLite dos registros de solicitações aceitas.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
 - `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
 - `FINAL_RESULTS_*`: fila e API de destino das respostas finais.
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
+- `LANGSMITH_*`: tracing opcional dos workflows executados pelos workers.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
 Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
@@ -104,6 +106,33 @@ Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
 
 `router`, `search` e `image` podem usar providers diferentes. O modelo configurado
 em `IMAGE_MODEL` precisa aceitar imagens como entrada.
+
+### LangSmith
+
+O tracing dos workflows é opcional e permanece desabilitado por padrão. Para
+ativá-lo, configure uma chave e habilite o envio:
+
+```env
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=sua_chave_langsmith
+LANGSMITH_PROJECT=verificaai-development
+LANGSMITH_HIDE_INPUTS=true
+LANGSMITH_HIDE_OUTPUTS=false
+```
+
+Cada execução de análise é registrada como `analyze_workflow`, com o `task_id` e
+a versão da aplicação em metadata. Isso permite correlacionar a solicitação
+aceita com a execução do worker. Com `LANGSMITH_HIDE_INPUTS=true`, consultas,
+anexos, transcrições e prompts ficam ocultos. Com `LANGSMITH_HIDE_OUTPUTS=false`,
+respostas e retornos de ferramentas permanecem disponíveis para observação.
+
+Cada tentativa do worker de entrega ao painel também gera a trace independente
+`verificaai_painel_delivery`, correlacionada pelo mesmo `task_id`. Ela registra
+somente o status HTTP e se o painel respondeu com sucesso (`acknowledged`), sem
+incluir o payload, o token de autenticação ou o corpo da resposta. Uma resposta
+de sucesso confirma o aceite HTTP pelo painel, não uma consulta direta ao banco
+de dados dele. Com `LANGSMITH_HIDE_OUTPUTS=false`, esses campos aparecem no
+output da trace.
 
 Regra prática:
 
@@ -197,8 +226,70 @@ automaticamente aos anexos. Anexos explícitos e links da consulta são
 deduplicados, mas a `query` original permanece inalterada. O tipo é identificado
 primeiro pelo MIME type informado e depois pela extensão da URL.
 
+Áudios e vídeos destinados à transcrição aceitam somente os formatos `.mpeg`,
+`.ogg`, `.mp3`, `.wav`, `.mp4`, `.avi` e `.webm`. Quando a URL não possui
+extensão, é obrigatório informar um MIME type equivalente a um desses formatos.
+Um formato inválido recebe resposta HTTP `422` antes da criação do job e não é
+enviado aos agentes ou modelos.
+
 Quando há várias mídias, os agentes especializados processam cada uma e o agente
 de busca recebe uma única consulta com todos os contextos extraídos.
+
+### Solicitações aceitas
+
+Depois que uma chamada autenticada e validada é enfileirada, o VerificaAI
+registra seu `task_id`, a aplicação autenticada e o horário de aceitação no banco
+definido por `ANALYZE_REQUESTS_DB_PATH`. O payload da solicitação não é
+persistido nesse registro. Uma falha nessa gravação é registrada no log, mas não
+altera a resposta `202` nem impede o processamento da análise.
+
+Os registros podem ser consultados com autenticação administrativa:
+
+```text
+GET /admin/analyze-requests?application_id={uuid}&limit=50&offset=0
+```
+
+A resposta inclui `total`, `limit`, `offset` e os itens da página. A rota aparece
+na documentação somente quando `ADMIN_DOCS_ENABLED=true`.
+
+### Reanálise
+
+O endpoint autenticado `POST /reanalyze` permite solicitar uma ampliação de um
+resultado automático ainda não revisado por uma pessoa:
+
+```json
+{
+  "reanalysis_id": "66c97611-3931-4f96-b963-17f5121b2353",
+  "final_result_id": "c824bf11-2a72-43dd-919b-a3f76de5fe04",
+  "prompt": "Verifique também se o fato representado na imagem aconteceu."
+}
+```
+
+Antes de enfileirar o job, o VerificaAI consulta o resultado original em
+`FINAL_RESULTS_API_URL/{final_result_id}`. Resultados que já tenham classificação
+humana recebem HTTP `409` e não são enviados aos agentes.
+
+A reanálise utiliza a consulta, a resposta, a classificação, as fontes e os
+anexos do `FinalResult` automático. As mídias originais são processadas novamente
+antes da pesquisa online. A síntese devolvida é uma nova resposta completa: ela
+preserva o conteúdo anterior que continua relevante e incorpora as evidências da
+nova consulta. Conteúdo anterior somente deve ser removido quando a instrução
+humana solicitar ou quando novas evidências exigirem uma correção.
+
+O enqueue responde com HTTP `202`:
+
+```json
+{
+  "task_id": "uuid-do-job",
+  "status": "queued"
+}
+```
+
+O andamento pode ser consultado, com autenticação, em
+`GET /reanalyze/status/{task_id}`. Ao terminar, o resultado é enviado para
+`REANALYSIS_RESULTS_API_URL/{reanalysis_id}/result` pela mesma fila e pelo mesmo
+worker usados nas entregas ao VerificaAI Painel. Entregas repetidas devem ser
+tratadas de forma idempotente pelo painel.
 
 ### Qdrant
 
@@ -252,6 +343,7 @@ FINAL_RESULTS_RESULT_TTL_SECONDS=86400
 FINAL_RESULTS_FAILURE_TTL_SECONDS=604800
 FINAL_RESULTS_RETRY_INTERVALS_SECONDS="10,30,60,300,900"
 FINAL_RESULTS_API_URL="http://laravel:8002/api/v1/final-results"
+REANALYSIS_RESULTS_API_URL="http://laravel:8002/api/v1/final-result-reanalyses"
 FINAL_RESULTS_API_TOKEN="seu-token"
 FINAL_RESULTS_API_TIMEOUT_SECONDS=15
 ```
