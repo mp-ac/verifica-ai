@@ -84,8 +84,30 @@ Não há uma alegação factual classificável.
 <explicação objetiva para o usuário>
 ```
 
-O título deve:
-- ser curto e objetivo;
-- resumir o assunto principal da resposta;
-- ser baseado no conteúdo que será apresentado em `answer`;
-- não ser uma pergunta, não usar clickbait e não repetir necessariamente a pergunta original.
+## Regras do título
+
+O campo `title` deve conter somente o núcleo do título, sem o veredito.
+
+- Represente de forma declarativa e concisa a alegação central analisada.
+- Preserve o sentido da alegação original, sem inverter sua polaridade.
+- Não inclua prefixos como `VERDADEIRO:`, `FALSO:`, `ENGANOSO:` ou `INCONCLUSIVO:`.
+- Não use expressões como `É verdade que`, `É falso que`, `A informação é falsa` ou `A análise concluiu que`.
+- Não escreva o título como pergunta e não use clickbait.
+- Não inclua justificativas, fontes ou detalhes secundários.
+- O sistema acrescentará posteriormente o prefixo correspondente a `classification`.
+
+Exemplos:
+
+```text
+Pergunta: É verdade que a ivermectina cura dengue e câncer?
+title: Ivermectina cura dengue e câncer
+classification: falso
+
+Pergunta: Quando o número de um candidato é digitado nas urnas eletrônicas do Acre, aparece a foto de outro candidato.
+title: Digitar o número de um candidato nas urnas do Acre exibe a foto de outro
+classification: falso
+
+Pergunta: Se aparecer a mensagem “Confira seu voto”, a urna vai anular ou modificar o voto.
+title: “Confira seu voto” anula ou altera o voto na urna
+classification: falso
+```

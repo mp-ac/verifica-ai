@@ -5,6 +5,7 @@ from graph.state import FinalAnswerResult
 from llm_registry import router_llm
 from reanalysis.graph.state import ReanalysisState
 from utils.prompts_util import load_prompt
+from utils.title_formatting import format_classified_title
 from utils.token_usage import get_token_usage
 
 
@@ -160,8 +161,14 @@ def synthesize_reanalysis(state: ReanalysisState) -> dict:
     if response["parsing_error"] is not None:
         raise response["parsing_error"]
 
+    final_answer = response["parsed"]
+    final_answer.title = format_classified_title(
+        final_answer.title,
+        final_answer.classification,
+    )
+
     return {
-        "final_answer": response["parsed"],
+        "final_answer": final_answer,
         "model_usage": [{
             "role": "router",
             **get_token_usage([response["raw"]]),
