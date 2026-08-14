@@ -77,7 +77,9 @@ class SourceItem(BaseModel):
 class FinalAnswerResult(BaseModel):
     title: str = Field(
         default="",
-        description="Título curto e objetivo baseado no conteúdo da resposta"
+        description=(
+            "Núcleo curto e objetivo do título, sem prefixo de classificação"
+        ),
     )
     answer: str = Field(description="Resposta final consolidada para o usuário")
     sources: list[SourceItem] = Field(

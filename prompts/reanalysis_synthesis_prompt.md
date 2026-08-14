@@ -26,3 +26,16 @@ O campo `answer` deve começar com o parágrafo correspondente à classificaçã
 - `enganoso`: `A informação é enganosa.`
 - `inconclusivo`: `A análise é inconclusiva.`
 - `null`: `Não há uma alegação factual classificável.`
+
+## Regras do título
+
+O campo `title` deve conter somente o núcleo do título, sem o veredito.
+
+- Represente de forma declarativa e concisa a alegação central analisada.
+- Preserve o sentido da alegação original, sem inverter sua polaridade.
+- Não inclua prefixos como `VERDADEIRO:`, `FALSO:`, `ENGANOSO:` ou `INCONCLUSIVO:`.
+- Não use expressões como `É verdade que`, `É falso que`, `A informação é falsa` ou `A análise concluiu que`.
+- Não escreva o título como pergunta e não use clickbait.
+- Não inclua justificativas, fontes ou detalhes secundários.
+- Gere o título a partir da conclusão completa da reanálise, sem copiar automaticamente o título anterior.
+- O sistema acrescentará posteriormente o prefixo correspondente a `classification`.

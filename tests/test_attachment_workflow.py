@@ -98,7 +98,7 @@ class AttachmentWorkflowTest(unittest.TestCase):
         self.assertTrue(state["final_answer"].is_classified)
         self.assertEqual(
             state["final_answer"].title,
-            "Conteúdos enviados e resultados da pesquisa",
+            "INCONCLUSIVO: Conteúdos enviados e resultados da pesquisa",
         )
         self.assertEqual(len(state["model_usage"]), 5)
         image_load_prompt.assert_called_once()
