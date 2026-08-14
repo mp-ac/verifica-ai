@@ -572,6 +572,10 @@ class ReanalysisSynthesisTest(unittest.TestCase):
             messages[0]["content"],
         )
         self.assertEqual(result["final_answer"].classification, "enganoso")
+        self.assertEqual(
+            result["final_answer"].title,
+            "ENGANOSO: Análise ampliada",
+        )
         load_prompt.assert_called_once()
 
 

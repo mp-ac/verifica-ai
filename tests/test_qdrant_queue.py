@@ -419,6 +419,67 @@ class QdrantQueueTest(unittest.TestCase):
     @patch("final_results.wait_for_all_tracers")
     @patch("final_results.trace")
     @patch("final_results.requests.post")
+    def test_final_result_job_traces_safe_validation_error_fields(
+        self,
+        post: Mock,
+        trace: Mock,
+        _wait_for_tracers: Mock,
+        get_current_job: Mock,
+    ) -> None:
+        import requests
+
+        from final_results import store_final_result_job
+
+        response = post.return_value
+        response.ok = False
+        response.status_code = 422
+        response.json.return_value = {
+            "message": "The given data was invalid.",
+            "errors": {
+                "result.final_answer.sources.0.url": [
+                    "The rejected value was https://private.example/token."
+                ],
+                "unsafe field with spaces": ["Must not reach the trace."],
+            },
+        }
+        response.raise_for_status.side_effect = requests.HTTPError(
+            "422 Client Error"
+        )
+        trace_run = trace.return_value.__enter__.return_value
+        get_current_job.return_value = SimpleNamespace(
+            id="delivery-job-id",
+            retries_left=3,
+        )
+
+        with self.assertRaisesRegex(requests.HTTPError, "422 Client Error"):
+            store_final_result_job("task-id", self._completed_result())
+
+        trace_run.end.assert_called_once_with(
+            outputs={
+                "acknowledged": False,
+                "http_status": 422,
+                "failure_type": "validation_error",
+                "validation_error_fields": [
+                    "result.final_answer.sources.0.url"
+                ],
+            },
+            error="HTTP 422",
+        )
+        traced_data = str(trace_run.end.call_args.kwargs)
+        self.assertNotIn("private.example", traced_data)
+        self.assertNotIn("Must not reach the trace", traced_data)
+
+    @patch.dict(
+        os.environ,
+        {
+            "FINAL_RESULTS_API_URL": "https://example.test/final-results",
+            "FINAL_RESULTS_API_TOKEN": "secret-token",
+        },
+    )
+    @patch("final_results.get_current_job")
+    @patch("final_results.wait_for_all_tracers")
+    @patch("final_results.trace")
+    @patch("final_results.requests.post")
     def test_final_result_job_traces_connection_failure_and_retries(
         self,
         post: Mock,

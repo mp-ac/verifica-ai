@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -14,6 +15,9 @@ load_dotenv()
 load_dotenv(".env.painel-api")
 
 logger = logging.getLogger(__name__)
+
+_VALIDATION_ERROR_FIELD_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,200}$")
+_VALIDATION_ERROR_FIELDS_LIMIT = 25
 
 
 def final_results_api_url() -> str:
@@ -90,8 +94,35 @@ def _store_final_result(
         acknowledged=response.ok,
         http_status=response.status_code,
         error=None if response.ok else f"HTTP {response.status_code}",
+        validation_error_fields=_validation_error_fields(response),
     )
     response.raise_for_status()
+
+
+def _validation_error_fields(response: requests.Response) -> list[str]:
+    """Return only safe field paths from a panel validation response."""
+    if response.status_code != 422:
+        return []
+
+    try:
+        response_data = response.json()
+    except (requests.JSONDecodeError, ValueError):
+        return []
+
+    if not isinstance(response_data, dict):
+        return []
+
+    errors = response_data.get("errors")
+    if not isinstance(errors, dict):
+        return []
+
+    fields = {
+        field
+        for field in errors
+        if isinstance(field, str)
+        and _VALIDATION_ERROR_FIELD_PATTERN.fullmatch(field)
+    }
+    return sorted(fields)[:_VALIDATION_ERROR_FIELDS_LIMIT]
 
 
 def _trace_panel_delivery(
@@ -102,6 +133,7 @@ def _trace_panel_delivery(
     acknowledged: bool,
     http_status: int | None = None,
     error: str | None = None,
+    validation_error_fields: list[str] | None = None,
 ) -> None:
     try:
         with trace(
@@ -117,11 +149,18 @@ def _trace_panel_delivery(
             parent="ignore",
             start_time=started_at,
         ) as run:
+            outputs = {
+                "acknowledged": acknowledged,
+                "http_status": http_status,
+            }
+            if http_status == 422:
+                outputs["failure_type"] = "validation_error"
+                outputs["validation_error_fields"] = (
+                    validation_error_fields or []
+                )
+
             run.end(
-                outputs={
-                    "acknowledged": acknowledged,
-                    "http_status": http_status,
-                },
+                outputs=outputs,
                 error=error,
             )
     except Exception:
