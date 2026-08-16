@@ -3,13 +3,56 @@ from unittest.mock import Mock, patch
 
 from langchain_core.messages import AIMessage
 
-from graph.state import FinalAnswerResult, ImageAnalysisResult
+from graph.state import FinalAnswerResult, ImageAnalysisResult, SourceItem
 
 
 class AttachmentWorkflowTest(unittest.TestCase):
     @patch("graph.nodes.load_prompt", return_value="Sintetize {query}")
     @patch("graph.nodes.router_llm")
-    @patch("agents.search_agent.search_agent")
+    def test_grounded_sources_replace_router_generated_sources(
+        self,
+        router_llm: Mock,
+        load_prompt: Mock,
+    ) -> None:
+        from graph.nodes import synthesize_results
+
+        router_llm.with_structured_output.return_value.invoke.return_value = {
+            "parsed": FinalAnswerResult(
+                title="Alegação verificada",
+                answer="A informação é verdadeira.\n\nResposta.",
+                sources=[SourceItem(
+                    title="Fonte inventada pelo router",
+                    url="https://example.com/inventada",
+                )],
+                classification="verdadeiro",
+            ),
+            "raw": AIMessage(content="", usage_metadata={
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "total_tokens": 15,
+            }),
+            "parsing_error": None,
+        }
+
+        result = synthesize_results({
+            "query": "Alegação",
+            "results": [{"source": "search_agent", "result": "Pesquisa"}],
+            "sources": [
+                SourceItem(title="Fonte Google", url="https://example.com/google"),
+                SourceItem(title="Duplicada", url="https://example.com/google"),
+            ],
+        })
+
+        self.assertEqual(
+            result["final_answer"].sources,
+            [SourceItem(title="Fonte Google", url="https://example.com/google")],
+        )
+        load_prompt.assert_called_once()
+
+    @patch("graph.nodes.load_prompt", return_value="Sintetize {query}")
+    @patch("graph.nodes.router_llm")
+    @patch("agents.search_agent.agent.search_agent")
+    @patch("agents.search_agent.agent.SEARCH_GOOGLE_SEARCH_ENABLED", False)
     @patch("agents.transcription_agent.transcription_agent")
     @patch("agents.image_agent.load_prompt", return_value="Prompt visual")
     @patch("agents.image_agent.image_llm")

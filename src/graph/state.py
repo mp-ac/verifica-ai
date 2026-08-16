@@ -112,6 +112,7 @@ class RouterState(TypedDict):
     classifications: list[Classification]
     media_contexts: Annotated[list[AgentOutput], operator.add]
     results: Annotated[list[AgentOutput], operator.add]
+    sources: Annotated[list[SourceItem], operator.add]
     tools: Annotated[list[str], operator.add]
     model_usage: Annotated[list[ModelUsage], operator.add]
     debug_events: Annotated[list[str], operator.add]

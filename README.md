@@ -158,6 +158,21 @@ SEARCH_API_KEY=sua_chave_vllm
 SEARCH_BASE_URL=https://seu-endpoint/v1
 ```
 
+Para usar a busca nativa do Gemini no lugar do SerpAPI:
+
+```env
+SEARCH_PROVIDER=google
+SEARCH_MODEL=gemini-2.5-flash
+SEARCH_API_KEY=sua_chave_google
+SEARCH_BASE_URL=
+SEARCH_GOOGLE_SEARCH_ENABLED=true
+```
+
+Nesse modo, `get_links` não é registrado e o SerpAPI não é chamado. A execução
+só é aceita quando o Gemini devolve consultas em `grounding_metadata` e fontes
+citadas. As fontes estruturadas do grounding são salvas em `final_answer.sources`,
+e `execution.tools` inclui `google_search` somente quando a busca foi executada.
+
 ```env
 IMAGE_PROVIDER=google
 IMAGE_MODEL=gemini-2.5-flash
