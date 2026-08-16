@@ -5,6 +5,7 @@ from graph.state import FinalAnswerResult
 from llm_registry import router_llm
 from reanalysis.graph.state import ReanalysisState
 from utils.prompts_util import load_prompt
+from utils.sources import deduplicate_sources
 from utils.title_formatting import format_classified_title
 from utils.token_usage import get_token_usage
 
@@ -162,6 +163,12 @@ def synthesize_reanalysis(state: ReanalysisState) -> dict:
         raise response["parsing_error"]
 
     final_answer = response["parsed"]
+    grounded_sources = state.get("sources", [])
+    if grounded_sources:
+        final_answer.sources = deduplicate_sources([
+            *state["original_final_answer"].sources,
+            *grounded_sources,
+        ])
     final_answer.title = format_classified_title(
         final_answer.title,
         final_answer.classification,

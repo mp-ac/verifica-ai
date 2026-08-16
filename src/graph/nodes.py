@@ -4,6 +4,7 @@ from config import ROUTER_CLASSIFICATION_PROMPT, ROUTER_SYNTHESIS_PROMPT
 from graph.state import ClassificationResult, FinalAnswerResult, RouterState, SourceItem
 from llm_registry import router_llm
 from utils.prompts_util import load_prompt
+from utils.sources import deduplicate_sources
 from utils.title_formatting import format_classified_title
 from utils.token_usage import get_token_usage
 
@@ -184,6 +185,9 @@ def synthesize_results(state: RouterState) -> dict:
         raise response["parsing_error"]
 
     final_answer = response["parsed"]
+    grounded_sources = deduplicate_sources(state.get("sources", []))
+    if grounded_sources:
+        final_answer.sources = grounded_sources
     final_answer.title = format_classified_title(
         final_answer.title,
         final_answer.classification,

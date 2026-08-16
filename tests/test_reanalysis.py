@@ -585,7 +585,8 @@ class ReanalysisWorkflowTest(unittest.TestCase):
         return_value="Produza uma resposta cumulativa.",
     )
     @patch("reanalysis.graph.nodes.router_llm")
-    @patch("agents.search_agent.search_agent")
+    @patch("agents.search_agent.agent.search_agent")
+    @patch("agents.search_agent.agent.SEARCH_GOOGLE_SEARCH_ENABLED", False)
     @patch("agents.image_agent.load_prompt", return_value="Prompt visual")
     @patch("agents.image_agent.image_llm")
     def test_reprocesses_image_before_search_and_cumulative_synthesis(
