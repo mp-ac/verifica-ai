@@ -4,7 +4,14 @@ from typing import Annotated, Literal, NotRequired, TypedDict
 from pydantic import AnyHttpUrl, BaseModel, Field, model_validator
 
 
-AttachmentType = Literal["image", "video", "audio", "web", "unknown"]
+AttachmentType = Literal[
+    "image",
+    "video",
+    "audio",
+    "youtube",
+    "web",
+    "unknown",
+]
 AttachmentOrigin = Literal["payload", "query"]
 ClassificationLabel = Literal[
     "verdadeiro",
@@ -37,7 +44,7 @@ class AgentOutput(TypedDict):
 
 class ModelUsage(TypedDict):
     """Token usage produced by one or more calls to a model role."""
-    role: Literal["router", "search", "image"]
+    role: Literal["router", "search", "image", "youtube"]
     input_tokens: int
     output_tokens: int
     thinking_tokens: int
@@ -47,7 +54,12 @@ class ModelUsage(TypedDict):
 
 class Classification(TypedDict):
     """A single routing decision: which agent to call with what query."""
-    source: Literal["search_agent", "transcription_agent", "image_agent"]
+    source: Literal[
+        "search_agent",
+        "transcription_agent",
+        "image_agent",
+        "youtube_agent",
+    ]
     query: str
     attachment: NotRequired[dict]
 
@@ -66,6 +78,36 @@ class ImageAnalysisResult(BaseModel):
     )
     research_query: str = Field(
         description="Consulta textual recomendada para pesquisa online"
+    )
+
+
+class YouTubeClaim(BaseModel):
+    """A factual claim identified at a specific point in a YouTube video."""
+    timestamp: str = Field(description="Timestamp inicial no formato MM:SS ou HH:MM:SS")
+    claim: str = Field(description="Alegação factual verificável")
+    spoken_excerpt: str | None = Field(
+        default=None,
+        description="Trecho falado diretamente relacionado à alegação",
+    )
+    visual_context: str | None = Field(
+        default=None,
+        description="Contexto visual diretamente relacionado à alegação",
+    )
+
+
+class YouTubeAnalysisResult(BaseModel):
+    """Structured context extracted from a public YouTube video."""
+    summary: str = Field(description="Resumo objetivo do conteúdo do vídeo")
+    claims: list[YouTubeClaim] = Field(
+        default_factory=list,
+        description="Alegações factuais que precisam de verificação externa",
+    )
+    research_query: str = Field(
+        description="Consulta consolidada recomendada para pesquisa online"
+    )
+    limitations: list[str] = Field(
+        default_factory=list,
+        description="Limitações encontradas durante a análise do vídeo",
     )
 
 

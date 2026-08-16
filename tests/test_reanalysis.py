@@ -277,6 +277,17 @@ class ReanalysisRoutingTest(unittest.TestCase):
         self.assertEqual(len(sends), 1)
         self.assertEqual(sends[0].node, "image_agent")
 
+    def test_routes_youtube_video_through_youtube_agent(self) -> None:
+        sends = route_reanalysis(self._state([
+            Attachment(
+                type="youtube",
+                url="https://www.youtube.com/watch?v=video-id",
+            )
+        ]))
+
+        self.assertEqual(len(sends), 1)
+        self.assertEqual(sends[0].node, "youtube_agent")
+
 
 class ReanalysisApiTest(unittest.IsolatedAsyncioTestCase):
     @patch("reanalysis.api.q")

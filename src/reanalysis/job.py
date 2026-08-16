@@ -52,7 +52,7 @@ def _process_reanalyze_job(
     executed_tools = set()
     usage_by_role = {
         role: empty_token_usage()
-        for role in ("router", "search", "image")
+        for role in ("router", "search", "image", "youtube")
     }
 
     for chunk in reanalysis_workflow.stream(
@@ -78,6 +78,7 @@ def _process_reanalyze_job(
                 "search_agent",
                 "transcription_agent",
                 "image_agent",
+                "youtube_agent",
             }:
                 executed_agents.add(step)
 

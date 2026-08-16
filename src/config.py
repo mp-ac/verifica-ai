@@ -17,6 +17,10 @@ IMAGE_AGENT_PROMPT = os.getenv(
     "IMAGE_AGENT_PROMPT",
     "prompts/image_agent_prompt.md",
 )
+YOUTUBE_AGENT_PROMPT = os.getenv(
+    "YOUTUBE_AGENT_PROMPT",
+    "prompts/youtube_agent_prompt.md",
+)
 ROUTER_SYNTHESIS_PROMPT = os.getenv("ROUTER_SYNTHESIS_PROMPT")
 REANALYSIS_SYNTHESIS_PROMPT = os.getenv(
     "REANALYSIS_SYNTHESIS_PROMPT",

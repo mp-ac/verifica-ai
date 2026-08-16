@@ -13,6 +13,7 @@ MEDIA_AGENT_BY_TYPE = {
     "image": "image_agent",
     "audio": "transcription_agent",
     "video": "transcription_agent",
+    "youtube": "youtube_agent",
 }
 
 

@@ -15,6 +15,7 @@ class LLMSettings:
 def _load_role_settings(
     prefix: str,
     default_temperature: float,
+    default_timeout: int = 120,
 ) -> LLMSettings:
     """Build role-specific LLM settings from environment variables."""
     return LLMSettings(
@@ -25,7 +26,7 @@ def _load_role_settings(
         temperature=float(
             os.getenv(f"{prefix}_TEMPERATURE", str(default_temperature))
         ),
-        timeout=int(os.getenv(f"{prefix}_TIMEOUT", "120")),
+        timeout=int(os.getenv(f"{prefix}_TIMEOUT", str(default_timeout))),
     )
 
 
@@ -55,3 +56,15 @@ def get_image_settings() -> LLMSettings:
         return get_search_settings()
 
     return _load_role_settings("IMAGE", default_temperature=0.1)
+
+
+def get_youtube_settings() -> LLMSettings:
+    """Load YouTube settings, falling back to the multimodal image model."""
+    if not os.getenv("YOUTUBE_MODEL", "").strip():
+        return get_image_settings()
+
+    return _load_role_settings(
+        "YOUTUBE",
+        default_temperature=0.1,
+        default_timeout=300,
+    )
