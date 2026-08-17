@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query
 from redis import Redis
-from rq import Queue
+from rq import Queue, Retry
 from rq.job import Job
 
 from auth import (
@@ -34,6 +34,7 @@ from queueing import (
     queue_name,
     redis_url,
     result_ttl_seconds,
+    retry_intervals,
 )
 from reanalysis import router as reanalysis_router
 from jobs import process_analyze_job
@@ -115,6 +116,7 @@ async def analyze(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     try:
+        analyze_retry_intervals = retry_intervals()
         requester_data = (
             payload.requester.model_dump() if payload.requester else {}
         )
@@ -133,6 +135,14 @@ async def analyze(
             job_timeout=job_timeout_seconds(),
             result_ttl=result_ttl_seconds(),
             failure_ttl=failure_ttl_seconds(),
+            retry=(
+                Retry(
+                    max=len(analyze_retry_intervals),
+                    interval=analyze_retry_intervals,
+                )
+                if analyze_retry_intervals
+                else None
+            ),
         )
         task_id = resolve_job_id(job)
         if not task_id:
@@ -168,7 +178,7 @@ async def get_status(task_id: str) -> AnalyzeStatusResponse:
     except Exception as exc:
         raise HTTPException(status_code=404, detail="Job não encontrado") from exc
 
-    if job.is_queued:
+    if job.is_queued or job.is_scheduled:
         return AnalyzeStatusResponse(status="queued")
     if job.is_started:
         return AnalyzeStatusResponse(status="processing")
