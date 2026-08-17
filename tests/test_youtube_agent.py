@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from langchain_core.messages import AIMessage, HumanMessage
 from pydantic import ValidationError
 
-from graph.state import (
+from agents.youtube_agent.schemas import (
     YouTubeAnalysisResult,
     YouTubeRelevantSegment,
 )
