@@ -73,7 +73,7 @@ def _process_analyze_job(
     executed_tools = set()
     usage_by_role = {
         role: empty_token_usage()
-        for role in ("router", "search", "image")
+        for role in ("router", "search", "image", "youtube")
     }
 
     is_retry = retry_attempt > 0
@@ -103,7 +103,12 @@ def _process_analyze_job(
         stream_mode="updates",
     ):
         for step, data in chunk.items():
-            if step in {"search_agent", "transcription_agent", "image_agent"}:
+            if step in {
+                "search_agent",
+                "transcription_agent",
+                "image_agent",
+                "youtube_agent",
+            }:
                 executed_agents.add(step)
 
             executed_tools.update(data.get("tools", []))

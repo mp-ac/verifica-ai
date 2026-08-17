@@ -6,6 +6,7 @@ from schemas.api import AnalyzeRequest
 from utils.attachments import (
     extract_urls,
     infer_attachment_type,
+    is_youtube_video_url,
     normalize_attachments,
     validate_transcription_format,
 )
@@ -57,6 +58,48 @@ class AttachmentsTest(unittest.TestCase):
             infer_attachment_type("https://example.com/file.mp4?token=123"),
             "video",
         )
+
+    def test_recognizes_supported_youtube_video_urls(self) -> None:
+        urls = (
+            "https://www.youtube.com/watch?v=video-id",
+            "https://youtu.be/video-id",
+            "https://www.youtube.com/shorts/video-id",
+            "https://www.youtube.com/live/video-id",
+            "https://www.youtube-nocookie.com/embed/video-id",
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertTrue(is_youtube_video_url(url))
+                self.assertEqual(infer_attachment_type(url), "youtube")
+
+    def test_rejects_non_video_and_lookalike_youtube_urls(self) -> None:
+        urls = (
+            "https://www.youtube.com/playlist?list=playlist-id",
+            "https://www.youtube.com/watch",
+            "https://youtube.com.example.org/watch?v=video-id",
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertFalse(is_youtube_video_url(url))
+
+    def test_normalizes_explicit_youtube_video_before_transcription_validation(
+        self,
+    ) -> None:
+        attachments = normalize_attachments(None, [{
+            "type": "video",
+            "url": "https://www.youtube.com/watch?v=video-id",
+        }])
+
+        self.assertEqual(attachments[0]["type"], "youtube")
+
+    def test_accepts_only_one_youtube_video_per_analysis(self) -> None:
+        with self.assertRaisesRegex(ValueError, "no máximo um vídeo"):
+            normalize_attachments(
+                "Compare https://youtu.be/video-a com "
+                "https://www.youtube.com/watch?v=video-b"
+            )
 
     def test_accepts_supported_transcription_extensions(self) -> None:
         for extension in (
