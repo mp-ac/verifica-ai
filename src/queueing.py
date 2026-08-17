@@ -29,6 +29,19 @@ def failure_ttl_seconds() -> int:
     return int(os.getenv("RQ_FAILURE_TTL_SECONDS", "86400"))
 
 
+def retry_intervals() -> list[int]:
+    """Return the configured delays between retries of an analysis job."""
+    value = os.getenv(
+        "RQ_RETRY_INTERVALS_SECONDS",
+        "30,60,120,300,600",
+    )
+    return [
+        int(interval.strip())
+        for interval in value.split(",")
+        if interval.strip()
+    ]
+
+
 def final_results_queue_name() -> str:
     return os.getenv("FINAL_RESULTS_QUEUE_NAME", "final-results")
 

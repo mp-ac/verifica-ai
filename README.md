@@ -91,6 +91,8 @@ Principais grupos de configuração:
   `YOUTUBE_MODEL`, reutiliza `IMAGE_*`.
 - `ATTACHMENTS_MAX_ITEMS`: quantidade máxima de conteúdos aceitos em uma análise.
 - `ANALYZE_REQUESTS_DB_PATH`: banco SQLite dos registros de solicitações aceitas.
+- `RQ_RETRY_INTERVALS_SECONDS`: intervalos, em segundos, entre novas tentativas
+  de uma análise que falhou; uma lista vazia desabilita o retry.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
 - `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
@@ -100,6 +102,11 @@ Principais grupos de configuração:
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
 - `LANGSMITH_*`: tracing opcional dos workflows executados pelos workers.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
+
+Cada valor de `RQ_RETRY_INTERVALS_SECONDS` representa uma nova tentativa. Por
+exemplo, `30,60,120,300,600` permite cinco retries, preservando o mesmo
+`task_id`. Enquanto aguarda o próximo intervalo, o endpoint de status apresenta
+o job como `queued`.
 
 Para `ROUTER_*`, `SEARCH_*`, `IMAGE_*` e `YOUTUBE_*`, o contrato é sempre o mesmo:
 
@@ -132,6 +139,9 @@ a versão da aplicação em metadata. Isso permite correlacionar a solicitação
 aceita com a execução do worker. Com `LANGSMITH_HIDE_INPUTS=true`, consultas,
 anexos, transcrições e prompts ficam ocultos. Com `LANGSMITH_HIDE_OUTPUTS=false`,
 respostas e retornos de ferramentas permanecem disponíveis para observação.
+Uma nova tentativa é registrada como `analyze_workflow_retry`, com a tag `retry`
+e os campos `retry_attempt` e `is_retry` na metadata. Todas as tentativas mantêm
+o mesmo `task_id`.
 
 Cada tentativa do worker de entrega ao painel também gera a trace independente
 `verificaai_painel_delivery`, correlacionada pelo mesmo `task_id`. Ela registra
