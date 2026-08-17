@@ -6,6 +6,7 @@ from agents.transcription_agent import query_transcription
 from agents.youtube_agent import query_youtube
 from reanalysis.graph.nodes import (
     prepare_reanalysis_search,
+    route_after_prepare_reanalysis,
     route_reanalysis,
     synthesize_reanalysis,
 )
@@ -33,7 +34,11 @@ reanalysis_workflow = (
     .add_edge("transcription_agent", "prepare_search")
     .add_edge("image_agent", "prepare_search")
     .add_edge("youtube_agent", "prepare_search")
-    .add_edge("prepare_search", "search_agent")
+    .add_conditional_edges(
+        "prepare_search",
+        route_after_prepare_reanalysis,
+        {"search_agent": "search_agent", "end": END},
+    )
     .add_edge("search_agent", "synthesize")
     .add_edge("synthesize", END)
     .compile()

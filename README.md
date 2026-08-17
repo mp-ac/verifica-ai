@@ -238,6 +238,20 @@ URLs `youtube.com/watch`, `youtu.be`, `youtube.com/shorts`,
 automaticamente. O Gemini aceita somente vídeos públicos; vídeos privados,
 indisponíveis ou não listados fazem a análise falhar.
 
+Quando o usuário informa uma pergunta ou alegação específica, ela define o foco
+da análise. Caso contrário, o sistema obtém o título e a thumbnail oficiais pelo
+endpoint público oEmbed do YouTube, sem chave adicional. O título é a fonte
+principal da alegação; a thumbnail apenas fornece contexto ou completa um título
+vago. Manchetes e outros textos exibidos dentro dos frames nunca são tratados
+como título. Os demais assuntos do vídeo são ignorados na pesquisa e na
+classificação.
+
+Se o pedido for genérico, o título não trouxer uma alegação clara e o vídeo
+abordar vários tópicos, a execução termina sem pesquisa e sem classificação. O
+resultado orienta o analista a pedir que o usuário indique a afirmação, o trecho
+ou o timestamp que deseja verificar. A resposta final mantém no máximo dez
+fontes escolhidas pelo router e validadas contra as URLs citadas no grounding.
+
 Quando a solicitação tiver sido originada por uma pessoa em uma aplicação
 externa, seus identificadores podem ser informados em `requester`:
 

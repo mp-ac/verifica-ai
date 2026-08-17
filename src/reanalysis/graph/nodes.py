@@ -8,6 +8,10 @@ from utils.prompts_util import load_prompt
 from utils.sources import deduplicate_sources
 from utils.title_formatting import format_classified_title
 from utils.token_usage import get_token_usage
+from utils.youtube_research import (
+    build_youtube_clarification_answer,
+    format_youtube_research_query,
+)
 
 
 MEDIA_AGENT_BY_TYPE = {
@@ -60,6 +64,27 @@ def format_reanalysis_research_query(state: ReanalysisState) -> str:
     ]
 
     media_contexts = state.get("media_contexts", [])
+    central_claim = state.get("youtube_central_claim")
+    if central_claim:
+        youtube_context = next(
+            (
+                context["result"]
+                for context in media_contexts
+                if context["source"] == "youtube_agent"
+            ),
+            "Nenhum contexto adicional foi extraído.",
+        )
+        parts.extend([
+            "<foco_central_do_video>",
+            format_youtube_research_query(central_claim, youtube_context),
+            "</foco_central_do_video>",
+        ])
+        media_contexts = [
+            context
+            for context in media_contexts
+            if context["source"] != "youtube_agent"
+        ]
+
     if media_contexts:
         parts.extend([
             "<conteudo_extraido_das_midias>",
@@ -101,6 +126,17 @@ def route_reanalysis(state: ReanalysisState) -> list[Send]:
 
 
 def prepare_reanalysis_search(state: ReanalysisState) -> dict:
+    if state.get("youtube_requires_clarification"):
+        return {
+            "final_answer": build_youtube_clarification_answer(
+                state.get("youtube_clarification_reason")
+            ),
+            "debug_events": [
+                "Reanálise encerrada sem pesquisa porque o vídeo não possui "
+                "um foco factual único."
+            ],
+        }
+
     return {
         "research_query": format_reanalysis_research_query(state),
         "debug_events": [
@@ -108,6 +144,13 @@ def prepare_reanalysis_search(state: ReanalysisState) -> dict:
             "para pesquisa."
         ],
     }
+
+
+def route_after_prepare_reanalysis(state: ReanalysisState) -> str:
+    """Skip research when the video still needs a precise human instruction."""
+    if state.get("final_answer") is not None:
+        return "end"
+    return "search_agent"
 
 
 def _format_reanalysis_synthesis_input(

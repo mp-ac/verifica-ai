@@ -7,6 +7,7 @@ from agents.youtube_agent import query_youtube
 from graph.nodes import (
     classify_query,
     prepare_search_query,
+    route_after_prepare_search,
     route_to_agents,
     synthesize_results,
 )
@@ -29,7 +30,11 @@ workflow = (
     .add_edge("transcription_agent", "prepare_search")
     .add_edge("image_agent", "prepare_search")
     .add_edge("youtube_agent", "prepare_search")
-    .add_edge("prepare_search", "search_agent")
+    .add_conditional_edges(
+        "prepare_search",
+        route_after_prepare_search,
+        {"search_agent": "search_agent", "end": END},
+    )
     .add_edge("search_agent", "synthesize")
     .add_edge("synthesize", END)
     .compile()

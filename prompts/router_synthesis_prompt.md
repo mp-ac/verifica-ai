@@ -6,6 +6,11 @@ Não acrescente fatos, fontes, links ou conclusões que não estejam nos resulta
 Se os resultados dos agentes forem insuficientes, indique essa limitação claramente.
 Combine as informações sem redundância, preservando evidências, fontes e limitações apresentadas pelos agentes.
 
+Em `sources`, inclua somente as fontes que sustentam afirmações presentes na
+resposta final. Selecione no máximo dez URLs recebidas nos resultados dos
+agentes, priorizando fontes oficiais, científicas e diretamente relacionadas.
+Não crie, complete ou modifique URLs.
+
 Além do título, da resposta e das fontes, retorne o veredito geral estruturado:
 
 - `classification`: use exatamente um destes valores: `verdadeiro`, `falso`, `enganoso` ou `inconclusivo`;
@@ -20,6 +25,12 @@ Escolha uma única classificação para a alegação central:
 - `falso`: as evidências contradizem diretamente a alegação central, que não depende principalmente de omissão de contexto ou de uma conclusão distorcida;
 - `enganoso`: a informação usa fatos verdadeiros, parcialmente verdadeiros ou autênticos fora de contexto para induzir a uma conclusão incorreta ou diferente daquela sustentada pelas evidências;
 - `inconclusivo`: a alegação foi analisada, mas as evidências disponíveis não permitem concluir se ela é verdadeira, falsa ou enganosa.
+
+Classifique a formulação exata da alegação central, incluindo relações de causa,
+culpa, absolvição, generalizações e demais implicações factuais. A confirmação
+de um acontecimento usado como premissa não torna verdadeira uma conclusão mais
+ampla. Quando um fato real for usado para induzir essa conclusão não sustentada,
+use `enganoso`; quando faltarem evidências para avaliá-la, use `inconclusivo`.
 
 Quando `falso` e `enganoso` parecerem aplicáveis, use `enganoso` se um fato real, uma declaração autêntica ou um dado verdadeiro tiver sido apresentado sem contexto ou usado para sustentar uma conclusão incorreta. Use `falso` quando a própria alegação central for diretamente contrariada pelas evidências e a distorção de contexto não for o elemento principal.
 

@@ -266,6 +266,27 @@ class ReanalysisRoutingTest(unittest.TestCase):
         self.assertIn("Pesquise o conteúdo representado", query)
         self.assertIn("https://example.com/fonte-anterior", query)
 
+    def test_reanalysis_uses_only_central_youtube_claim(self) -> None:
+        state = self._state()
+        state["youtube_central_claim"] = (
+            "O arquivamento da ação absolveu o investigado."
+        )
+        state["youtube_requires_clarification"] = False
+        state["media_contexts"] = [{
+            "source": "youtube_agent",
+            "result": "Trecho relevante do vídeo.",
+        }, {
+            "source": "image_agent",
+            "result": "Texto adicional de uma imagem.",
+        }]
+
+        query = format_reanalysis_research_query(state)
+
+        self.assertIn("<foco_central_do_video>", query)
+        self.assertIn("O arquivamento da ação absolveu", query)
+        self.assertIn("Trecho relevante do vídeo", query)
+        self.assertIn("Texto adicional de uma imagem", query)
+
     def test_routes_original_image_through_image_agent(self) -> None:
         sends = route_reanalysis(self._state([
             Attachment(
