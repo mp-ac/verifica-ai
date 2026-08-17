@@ -87,6 +87,8 @@ Principais grupos de configuração:
 - `ROUTER_*`: configuração da LLM do router.
 - `SEARCH_*`: configuração da LLM do agente de busca.
 - `IMAGE_*`: configuração opcional da LLM multimodal; sem `IMAGE_MODEL`, reutiliza `SEARCH_*`.
+- `YOUTUBE_*`: configuração opcional do Gemini para vídeos públicos; sem
+  `YOUTUBE_MODEL`, reutiliza `IMAGE_*`.
 - `ATTACHMENTS_MAX_ITEMS`: quantidade máxima de conteúdos aceitos em uma análise.
 - `ANALYZE_REQUESTS_DB_PATH`: banco SQLite dos registros de solicitações aceitas.
 - `SERPAPI_API_KEY`: busca de links.
@@ -99,7 +101,7 @@ Principais grupos de configuração:
 - `LANGSMITH_*`: tracing opcional dos workflows executados pelos workers.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
-Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
+Para `ROUTER_*`, `SEARCH_*`, `IMAGE_*` e `YOUTUBE_*`, o contrato é sempre o mesmo:
 
 - `*_PROVIDER`: `google`, `openai` ou `vllm`
 - `*_MODEL`: nome do modelo
@@ -108,6 +110,9 @@ Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
 
 `router`, `search` e `image` podem usar providers diferentes. O modelo configurado
 em `IMAGE_MODEL` precisa aceitar imagens como entrada.
+
+O agente do YouTube requer provider `google`. Quando `YOUTUBE_MODEL` não for
+informado, ele reutiliza o modelo multimodal configurado em `IMAGE_*`.
 
 ### LangSmith
 
@@ -180,6 +185,16 @@ IMAGE_API_KEY=sua_chave_google
 IMAGE_BASE_URL=
 ```
 
+Configuração opcional dedicada para vídeos públicos do YouTube:
+
+```env
+YOUTUBE_PROVIDER=google
+YOUTUBE_MODEL=gemini-2.5-flash
+YOUTUBE_API_KEY=sua_chave_google
+YOUTUBE_BASE_URL=
+YOUTUBE_TIMEOUT=300
+```
+
 ### Conteúdos recebidos
 
 O endpoint `/analyze` aceita texto, anexos ou ambos. Imagens, áudios e vídeos
@@ -202,6 +217,40 @@ enviados por uma integração devem ser informados em `attachments`:
   ]
 }
 ```
+
+Vídeos públicos do YouTube podem ser enviados na própria consulta ou como
+attachment. A análise aceita inicialmente um vídeo do YouTube por solicitação:
+
+```json
+{
+  "query": "Verifique as alegações apresentadas neste vídeo",
+  "attachments": [
+    {
+      "type": "youtube",
+      "url": "https://www.youtube.com/watch?v=VIDEO_ID"
+    }
+  ]
+}
+```
+
+URLs `youtube.com/watch`, `youtu.be`, `youtube.com/shorts`,
+`youtube.com/live` e `youtube-nocookie.com/embed` são reconhecidas
+automaticamente. O Gemini aceita somente vídeos públicos; vídeos privados,
+indisponíveis ou não listados fazem a análise falhar.
+
+Quando o usuário informa uma pergunta ou alegação específica, ela define o foco
+da análise. Caso contrário, o sistema obtém o título e a thumbnail oficiais pelo
+endpoint público oEmbed do YouTube, sem chave adicional. O título é a fonte
+principal da alegação; a thumbnail apenas fornece contexto ou completa um título
+vago. Manchetes e outros textos exibidos dentro dos frames nunca são tratados
+como título. Os demais assuntos do vídeo são ignorados na pesquisa e na
+classificação.
+
+Se o pedido for genérico, o título não trouxer uma alegação clara e o vídeo
+abordar vários tópicos, a execução termina sem pesquisa e sem classificação. O
+resultado orienta o analista a pedir que o usuário indique a afirmação, o trecho
+ou o timestamp que deseja verificar. A resposta final mantém no máximo dez
+fontes escolhidas pelo router e validadas contra as URLs citadas no grounding.
 
 Quando a solicitação tiver sido originada por uma pessoa em uma aplicação
 externa, seus identificadores podem ser informados em `requester`:
@@ -241,7 +290,8 @@ Na entrega do resultado ao painel, o objeto é enriquecido desta forma:
 Todos os links HTTP ou HTTPS presentes na `query` também são adicionados
 automaticamente aos anexos. Anexos explícitos e links da consulta são
 deduplicados, mas a `query` original permanece inalterada. O tipo é identificado
-primeiro pelo MIME type informado e depois pela extensão da URL.
+primeiro como URL do YouTube, depois pelo MIME type informado e por fim pela
+extensão da URL.
 
 Áudios e vídeos destinados à transcrição aceitam somente os formatos `.mpeg`,
 `.ogg`, `.mp3`, `.wav`, `.mp4`, `.avi` e `.webm`. Quando a URL não possui

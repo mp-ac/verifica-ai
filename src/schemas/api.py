@@ -60,7 +60,7 @@ class TokenUsage(BaseModel):
 
 
 class ExecutionModel(BaseModel):
-    role: Literal["router", "search", "image"]
+    role: Literal["router", "search", "image", "youtube"]
     provider: str
     model: str
     usage: TokenUsage = Field(default_factory=TokenUsage)
@@ -69,7 +69,12 @@ class ExecutionModel(BaseModel):
 class ExecutionMetadata(BaseModel):
     models: list[ExecutionModel] = Field(default_factory=list)
     agents: list[
-        Literal["search_agent", "transcription_agent", "image_agent"]
+        Literal[
+            "search_agent",
+            "transcription_agent",
+            "image_agent",
+            "youtube_agent",
+        ]
     ] = Field(
         default_factory=list
     )

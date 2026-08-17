@@ -1,7 +1,7 @@
 import re
 from collections.abc import Iterable
 from pathlib import PurePosixPath
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from graph.state import Attachment
 
@@ -42,6 +42,16 @@ ALLOWED_TRANSCRIPTION_MIME_TYPES = {
 ALLOWED_TRANSCRIPTION_FORMATS_LABEL = (
     ".mpeg, .ogg, .mp3, .wav, .mp4, .avi e .webm"
 )
+YOUTUBE_HOSTS = {
+    "youtube.com",
+    "www.youtube.com",
+    "m.youtube.com",
+    "youtu.be",
+    "www.youtu.be",
+    "youtube-nocookie.com",
+    "www.youtube-nocookie.com",
+}
+MAX_YOUTUBE_ATTACHMENTS = 1
 
 
 def extract_urls(query: str | None) -> list[str]:
@@ -55,8 +65,31 @@ def extract_urls(query: str | None) -> list[str]:
     ]
 
 
+def is_youtube_video_url(url: str) -> bool:
+    """Return whether a URL identifies one supported YouTube video."""
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower()
+    if parsed.scheme not in {"http", "https"} or host not in YOUTUBE_HOSTS:
+        return False
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if host in {"youtu.be", "www.youtu.be"}:
+        return bool(path_parts)
+
+    if parsed.path == "/watch":
+        return bool(parse_qs(parsed.query).get("v", [""])[0].strip())
+
+    return (
+        len(path_parts) >= 2
+        and path_parts[0] in {"embed", "live", "shorts"}
+    )
+
+
 def infer_attachment_type(url: str, mime_type: str | None = None) -> str:
     """Infer the attachment type from MIME type and URL path."""
+    if is_youtube_video_url(url):
+        return "youtube"
+
     normalized_mime = (mime_type or "").split(";", 1)[0].strip().lower()
     if normalized_mime.startswith("image/"):
         return "image"
@@ -115,7 +148,9 @@ def normalize_attachments(
 
     for item in attachments:
         attachment = Attachment.model_validate(item)
-        if attachment.type == "unknown":
+        if is_youtube_video_url(str(attachment.url)):
+            attachment.type = "youtube"
+        elif attachment.type == "unknown":
             attachment.type = infer_attachment_type(
                 str(attachment.url),
                 attachment.mime_type,
@@ -146,6 +181,15 @@ def normalize_attachments(
     if len(normalized) > max_items:
         raise ValueError(
             f"A análise aceita no máximo {max_items} attachments."
+        )
+
+    youtube_count = sum(
+        attachment.type == "youtube"
+        for attachment in normalized
+    )
+    if youtube_count > MAX_YOUTUBE_ATTACHMENTS:
+        raise ValueError(
+            "A análise aceita no máximo um vídeo do YouTube."
         )
 
     return [attachment.model_dump(mode="json") for attachment in normalized]
