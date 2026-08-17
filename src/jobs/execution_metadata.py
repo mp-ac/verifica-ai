@@ -2,7 +2,7 @@ import os
 from datetime import datetime, timezone
 from time import perf_counter
 
-from llm_settings import get_image_settings
+from llm_settings import get_image_settings, get_youtube_settings
 
 
 def build_execution_metadata(
@@ -38,6 +38,17 @@ def build_execution_metadata(
                 "provider": image_settings.provider,
                 "model": image_settings.model,
                 "usage": usage_by_role["image"],
+            }
+        )
+
+    if "youtube_agent" in executed_agents:
+        youtube_settings = get_youtube_settings()
+        execution_models.append(
+            {
+                "role": "youtube",
+                "provider": youtube_settings.provider,
+                "model": youtube_settings.model,
+                "usage": usage_by_role["youtube"],
             }
         )
 

@@ -15,7 +15,7 @@ from config import (
 
 
 def _extract_title_from_markdown(document: str) -> str:
-    """Return the first markdown heading found in the document as its title."""
+    """Return the first Markdown heading found in the document as its title."""
     for line in document.splitlines():
         cleaned_line = line.strip()
         if cleaned_line.startswith("#"):

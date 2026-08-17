@@ -6,7 +6,7 @@ from config import SERPAPI_API_KEY
 
 
 @tool("get_links")
-def get_links(query: str):
+def get_links(query: str) -> str:
     """
     Busca resultados iniciais na web e retorna fontes candidatas para leitura posterior.
 

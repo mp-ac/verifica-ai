@@ -16,6 +16,19 @@ from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 logger = logging.getLogger(__name__)
 
 
+def _retry_attempt(job) -> int:
+    """Return zero initially and the retry number on later executions."""
+    if job is None:
+        return 0
+
+    intervals = getattr(job, "retry_intervals", None) or []
+    retries_left = getattr(job, "retries_left", None)
+    if retries_left is None:
+        return 0
+
+    return max(len(intervals) - retries_left, 0)
+
+
 def process_analyze_job(
     query: str | None,
     attachments: list[dict] | None = None,
@@ -23,12 +36,14 @@ def process_analyze_job(
 ) -> dict:
     job = get_current_job()
     task_id = job.id if job is not None else None
+    retry_attempt = _retry_attempt(job)
     try:
         return _process_analyze_job(
             query,
             attachments,
             requester,
             task_id=task_id,
+            retry_attempt=retry_attempt,
         )
     finally:
         if job is not None:
@@ -44,6 +59,7 @@ def _process_analyze_job(
     requester: dict | None = None,
     *,
     task_id: str | None = None,
+    retry_attempt: int = 0,
 ) -> dict:
     started_at = perf_counter()
     normalized_attachments = normalize_attachments(
@@ -57,8 +73,13 @@ def _process_analyze_job(
     executed_tools = set()
     usage_by_role = {
         role: empty_token_usage()
-        for role in ("router", "search", "image")
+        for role in ("router", "search", "image", "youtube")
     }
+
+    is_retry = retry_attempt > 0
+    trace_tags = ["flow:analyze"]
+    if is_retry:
+        trace_tags.append("retry")
 
     for chunk in workflow.stream(
         {
@@ -66,17 +87,28 @@ def _process_analyze_job(
             "attachments": normalized_attachments,
         },
         config={
-            "run_name": "analyze_workflow",
-            "tags": ["flow:analyze"],
+            "run_name": (
+                "analyze_workflow_retry"
+                if is_retry
+                else "analyze_workflow"
+            ),
+            "tags": trace_tags,
             "metadata": {
                 "task_id": task_id,
                 "app_version": os.getenv("APP_VERSION", "0.0.1"),
+                "retry_attempt": retry_attempt,
+                "is_retry": is_retry,
             },
         },
         stream_mode="updates",
     ):
         for step, data in chunk.items():
-            if step in {"search_agent", "transcription_agent", "image_agent"}:
+            if step in {
+                "search_agent",
+                "transcription_agent",
+                "image_agent",
+                "youtube_agent",
+            }:
                 executed_agents.add(step)
 
             executed_tools.update(data.get("tools", []))

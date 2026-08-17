@@ -84,6 +84,8 @@ class QdrantQueueTest(unittest.TestCase):
         self.assertEqual(trace_config["metadata"], {
             "task_id": "task-id",
             "app_version": "test-version",
+            "retry_attempt": 0,
+            "is_retry": False,
         })
         wait_for_tracers.assert_called_once_with()
         execution = result["execution"]

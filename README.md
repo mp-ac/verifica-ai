@@ -87,8 +87,12 @@ Principais grupos de configuração:
 - `ROUTER_*`: configuração da LLM do router.
 - `SEARCH_*`: configuração da LLM do agente de busca.
 - `IMAGE_*`: configuração opcional da LLM multimodal; sem `IMAGE_MODEL`, reutiliza `SEARCH_*`.
+- `YOUTUBE_*`: configuração opcional do Gemini para vídeos públicos; sem
+  `YOUTUBE_MODEL`, reutiliza `IMAGE_*`.
 - `ATTACHMENTS_MAX_ITEMS`: quantidade máxima de conteúdos aceitos em uma análise.
 - `ANALYZE_REQUESTS_DB_PATH`: banco SQLite dos registros de solicitações aceitas.
+- `RQ_RETRY_INTERVALS_SECONDS`: intervalos, em segundos, entre novas tentativas
+  de uma análise que falhou; uma lista vazia desabilita o retry.
 - `SERPAPI_API_KEY`: busca de links.
 - `FETCH_SITE_*`: leitura e conversão de páginas web.
 - `TRANSCRIPTION_*`: envio do áudio, consulta de status, polling e timeout.
@@ -99,7 +103,12 @@ Principais grupos de configuração:
 - `LANGSMITH_*`: tracing opcional dos workflows executados pelos workers.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
-Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
+Cada valor de `RQ_RETRY_INTERVALS_SECONDS` representa uma nova tentativa. Por
+exemplo, `30,60,120,300,600` permite cinco retries, preservando o mesmo
+`task_id`. Enquanto aguarda o próximo intervalo, o endpoint de status apresenta
+o job como `queued`.
+
+Para `ROUTER_*`, `SEARCH_*`, `IMAGE_*` e `YOUTUBE_*`, o contrato é sempre o mesmo:
 
 - `*_PROVIDER`: `google`, `openai` ou `vllm`
 - `*_MODEL`: nome do modelo
@@ -108,6 +117,9 @@ Para `ROUTER_*`, `SEARCH_*` e `IMAGE_*`, o contrato é sempre o mesmo:
 
 `router`, `search` e `image` podem usar providers diferentes. O modelo configurado
 em `IMAGE_MODEL` precisa aceitar imagens como entrada.
+
+O agente do YouTube requer provider `google`. Quando `YOUTUBE_MODEL` não for
+informado, ele reutiliza o modelo multimodal configurado em `IMAGE_*`.
 
 ### LangSmith
 
@@ -127,6 +139,9 @@ a versão da aplicação em metadata. Isso permite correlacionar a solicitação
 aceita com a execução do worker. Com `LANGSMITH_HIDE_INPUTS=true`, consultas,
 anexos, transcrições e prompts ficam ocultos. Com `LANGSMITH_HIDE_OUTPUTS=false`,
 respostas e retornos de ferramentas permanecem disponíveis para observação.
+Uma nova tentativa é registrada como `analyze_workflow_retry`, com a tag `retry`
+e os campos `retry_attempt` e `is_retry` na metadata. Todas as tentativas mantêm
+o mesmo `task_id`.
 
 Cada tentativa do worker de entrega ao painel também gera a trace independente
 `verificaai_painel_delivery`, correlacionada pelo mesmo `task_id`. Ela registra
@@ -158,11 +173,36 @@ SEARCH_API_KEY=sua_chave_vllm
 SEARCH_BASE_URL=https://seu-endpoint/v1
 ```
 
+Para usar a busca nativa do Gemini no lugar do SerpAPI:
+
+```env
+SEARCH_PROVIDER=google
+SEARCH_MODEL=gemini-2.5-flash
+SEARCH_API_KEY=sua_chave_google
+SEARCH_BASE_URL=
+SEARCH_GOOGLE_SEARCH_ENABLED=true
+```
+
+Nesse modo, `get_links` não é registrado e o SerpAPI não é chamado. A execução
+só é aceita quando o Gemini devolve consultas em `grounding_metadata` e fontes
+citadas. As fontes estruturadas do grounding são salvas em `final_answer.sources`,
+e `execution.tools` inclui `google_search` somente quando a busca foi executada.
+
 ```env
 IMAGE_PROVIDER=google
 IMAGE_MODEL=gemini-2.5-flash
 IMAGE_API_KEY=sua_chave_google
 IMAGE_BASE_URL=
+```
+
+Configuração opcional dedicada para vídeos públicos do YouTube:
+
+```env
+YOUTUBE_PROVIDER=google
+YOUTUBE_MODEL=gemini-2.5-flash
+YOUTUBE_API_KEY=sua_chave_google
+YOUTUBE_BASE_URL=
+YOUTUBE_TIMEOUT=300
 ```
 
 ### Conteúdos recebidos
@@ -187,6 +227,40 @@ enviados por uma integração devem ser informados em `attachments`:
   ]
 }
 ```
+
+Vídeos públicos do YouTube podem ser enviados na própria consulta ou como
+attachment. A análise aceita inicialmente um vídeo do YouTube por solicitação:
+
+```json
+{
+  "query": "Verifique as alegações apresentadas neste vídeo",
+  "attachments": [
+    {
+      "type": "youtube",
+      "url": "https://www.youtube.com/watch?v=VIDEO_ID"
+    }
+  ]
+}
+```
+
+URLs `youtube.com/watch`, `youtu.be`, `youtube.com/shorts`,
+`youtube.com/live` e `youtube-nocookie.com/embed` são reconhecidas
+automaticamente. O Gemini aceita somente vídeos públicos; vídeos privados,
+indisponíveis ou não listados fazem a análise falhar.
+
+Quando o usuário informa uma pergunta ou alegação específica, ela define o foco
+da análise. Caso contrário, o sistema obtém o título e a thumbnail oficiais pelo
+endpoint público oEmbed do YouTube, sem chave adicional. O título é a fonte
+principal da alegação; a thumbnail apenas fornece contexto ou completa um título
+vago. Manchetes e outros textos exibidos dentro dos frames nunca são tratados
+como título. Os demais assuntos do vídeo são ignorados na pesquisa e na
+classificação.
+
+Se o pedido for genérico, o título não trouxer uma alegação clara e o vídeo
+abordar vários tópicos, a execução termina sem pesquisa e sem classificação. O
+resultado orienta o analista a pedir que o usuário indique a afirmação, o trecho
+ou o timestamp que deseja verificar. A resposta final mantém no máximo dez
+fontes escolhidas pelo router e validadas contra as URLs citadas no grounding.
 
 Quando a solicitação tiver sido originada por uma pessoa em uma aplicação
 externa, seus identificadores podem ser informados em `requester`:
@@ -226,7 +300,8 @@ Na entrega do resultado ao painel, o objeto é enriquecido desta forma:
 Todos os links HTTP ou HTTPS presentes na `query` também são adicionados
 automaticamente aos anexos. Anexos explícitos e links da consulta são
 deduplicados, mas a `query` original permanece inalterada. O tipo é identificado
-primeiro pelo MIME type informado e depois pela extensão da URL.
+primeiro como URL do YouTube, depois pelo MIME type informado e por fim pela
+extensão da URL.
 
 Áudios e vídeos destinados à transcrição aceitam somente os formatos `.mpeg`,
 `.ogg`, `.mp3`, `.wav`, `.mp4`, `.avi` e `.webm`. Quando a URL não possui

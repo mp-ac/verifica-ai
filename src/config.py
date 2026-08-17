@@ -17,6 +17,10 @@ IMAGE_AGENT_PROMPT = os.getenv(
     "IMAGE_AGENT_PROMPT",
     "prompts/image_agent_prompt.md",
 )
+YOUTUBE_AGENT_PROMPT = os.getenv(
+    "YOUTUBE_AGENT_PROMPT",
+    "prompts/youtube_agent_prompt.md",
+)
 ROUTER_SYNTHESIS_PROMPT = os.getenv("ROUTER_SYNTHESIS_PROMPT")
 REANALYSIS_SYNTHESIS_PROMPT = os.getenv(
     "REANALYSIS_SYNTHESIS_PROMPT",
@@ -60,6 +64,10 @@ GCS_SERVICE_ACCOUNT_FILE = os.getenv("GCS_SERVICE_ACCOUNT_FILE")
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
 
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
+SEARCH_PROVIDER = os.getenv("SEARCH_PROVIDER", "vllm").strip().lower()
+SEARCH_GOOGLE_SEARCH_ENABLED = (
+    os.getenv("SEARCH_GOOGLE_SEARCH_ENABLED", "false").strip().lower() == "true"
+)
 
 FETCH_SITE_BASE_URL = (os.getenv("FETCH_SITE_BASE_URL") or "").rstrip("/")
 FETCH_SITE_BEARER_TOKEN = os.getenv("FETCH_SITE_BEARER_TOKEN")

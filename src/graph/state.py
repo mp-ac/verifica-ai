@@ -4,7 +4,14 @@ from typing import Annotated, Literal, NotRequired, TypedDict
 from pydantic import AnyHttpUrl, BaseModel, Field, model_validator
 
 
-AttachmentType = Literal["image", "video", "audio", "web", "unknown"]
+AttachmentType = Literal[
+    "image",
+    "video",
+    "audio",
+    "youtube",
+    "web",
+    "unknown",
+]
 AttachmentOrigin = Literal["payload", "query"]
 ClassificationLabel = Literal[
     "verdadeiro",
@@ -37,7 +44,7 @@ class AgentOutput(TypedDict):
 
 class ModelUsage(TypedDict):
     """Token usage produced by one or more calls to a model role."""
-    role: Literal["router", "search", "image"]
+    role: Literal["router", "search", "image", "youtube"]
     input_tokens: int
     output_tokens: int
     thinking_tokens: int
@@ -47,7 +54,12 @@ class ModelUsage(TypedDict):
 
 class Classification(TypedDict):
     """A single routing decision: which agent to call with what query."""
-    source: Literal["search_agent", "transcription_agent", "image_agent"]
+    source: Literal[
+        "search_agent",
+        "transcription_agent",
+        "image_agent",
+        "youtube_agent",
+    ]
     query: str
     attachment: NotRequired[dict]
 
@@ -111,7 +123,11 @@ class RouterState(TypedDict):
     attachments: list[dict]
     classifications: list[Classification]
     media_contexts: Annotated[list[AgentOutput], operator.add]
+    youtube_central_claim: NotRequired[str]
+    youtube_requires_clarification: NotRequired[bool]
+    youtube_clarification_reason: NotRequired[str]
     results: Annotated[list[AgentOutput], operator.add]
+    sources: Annotated[list[SourceItem], operator.add]
     tools: Annotated[list[str], operator.add]
     model_usage: Annotated[list[ModelUsage], operator.add]
     debug_events: Annotated[list[str], operator.add]
