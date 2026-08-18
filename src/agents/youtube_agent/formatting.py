@@ -2,6 +2,30 @@ from agents.youtube_agent.schemas import YouTubeAnalysisResult
 from agents.youtube_agent.tools import YouTubeMetadata
 
 
+MAX_RESEARCH_CONTEXT_SEGMENTS = 3
+MAX_RESEARCH_SUMMARY_CHARS = 400
+
+
+def _compact_summary(value: str) -> str:
+    summary = " ".join(value.split())
+    if len(summary) <= MAX_RESEARCH_SUMMARY_CHARS:
+        return summary
+    return f"{summary[:MAX_RESEARCH_SUMMARY_CHARS - 1].rstrip()}…"
+
+
+def format_research_context(analysis: YouTubeAnalysisResult) -> str:
+    """Format a compact video context for the online research step."""
+    relevant_summaries = []
+    for item in analysis.relevant_segments:
+        summary = _compact_summary(item.relevance)
+        if summary:
+            relevant_summaries.append(summary)
+        if len(relevant_summaries) == MAX_RESEARCH_CONTEXT_SEGMENTS:
+            break
+
+    return "\n".join(f"- {summary}" for summary in relevant_summaries)
+
+
 def format_analysis(
     analysis: YouTubeAnalysisResult,
     metadata: YouTubeMetadata,
