@@ -13,6 +13,30 @@ from agents.youtube_agent.tools import YouTubeMetadata, YouTubeMetadataError
 from utils.token_usage import empty_token_usage
 
 
+class YouTubeFormattingTest(unittest.TestCase):
+    def test_research_context_is_limited_to_three_compact_summaries(self) -> None:
+        from agents.youtube_agent.formatting import format_research_context
+
+        analysis = YouTubeAnalysisResult(
+            central_claim="Uma alegação deve ser verificada.",
+            central_claim_source="user_query",
+            relevant_segments=[
+                YouTubeRelevantSegment(
+                    timestamp=f"00:0{index}",
+                    relevance=f"Resumo {index}: " + ("contexto relevante " * 40),
+                )
+                for index in range(4)
+            ],
+        )
+
+        summaries = format_research_context(analysis).splitlines()
+
+        self.assertEqual(len(summaries), 3)
+        self.assertTrue(all(len(summary) <= 402 for summary in summaries))
+        self.assertIn("Resumo 2", summaries[-1])
+        self.assertNotIn("Resumo 3", format_research_context(analysis))
+
+
 class YouTubeAgentTest(unittest.TestCase):
     @patch("agents.youtube_agent.agent.get_youtube_metadata")
     @patch("agents.youtube_agent.agent.get_youtube_settings")
@@ -97,6 +121,14 @@ class YouTubeAgentTest(unittest.TestCase):
             result["youtube_central_claim"],
             "Uma vacina causa determinada doença.",
         )
+        self.assertEqual(
+            result["youtube_research_context"],
+            "- O trecho repete a alegação do título.",
+        )
+        self.assertNotIn(
+            "A vacina provoca a doença.",
+            result["youtube_research_context"],
+        )
         self.assertFalse(result["youtube_requires_clarification"])
         self.assertEqual(result["model_usage"][0]["role"], "youtube")
         self.assertIn("uma alegação central", result["debug_events"][1])
@@ -161,12 +193,16 @@ class YouTubeAgentTest(unittest.TestCase):
             "youtube_central_claim": (
                 "O arquivamento da ação absolveu o investigado."
             ),
+            "youtube_research_context": (
+                "- O trecho explica por que o arquivamento não equivale a absolvição."
+            ),
             "youtube_requires_clarification": False,
         })
 
         research_query = result["research_query"]
         self.assertIn("O arquivamento da ação absolveu", research_query)
-        self.assertIn("Trecho do vídeo diretamente relacionado", research_query)
+        self.assertIn("arquivamento não equivale", research_query)
+        self.assertNotIn("Trecho do vídeo diretamente relacionado", research_query)
         self.assertIn("Verifique exclusivamente", research_query)
         self.assertNotIn("youtube.com", research_query)
         self.assertIn("Texto relevante encontrado", research_query)

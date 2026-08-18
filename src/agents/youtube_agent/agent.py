@@ -1,6 +1,6 @@
 from langchain_core.messages import HumanMessage
 
-from agents.youtube_agent.formatting import format_analysis
+from agents.youtube_agent.formatting import format_analysis, format_research_context
 from agents.youtube_agent.message import build_message_content
 from agents.youtube_agent.schemas import YouTubeAnalysisResult
 from agents.youtube_agent.tools import (
@@ -100,6 +100,11 @@ def query_youtube(state: AgentInput) -> dict:
         }],
         **(
             {"youtube_central_claim": analysis.central_claim}
+            if analysis.central_claim is not None
+            else {}
+        ),
+        **(
+            {"youtube_research_context": format_research_context(analysis)}
             if analysis.central_claim is not None
             else {}
         ),
