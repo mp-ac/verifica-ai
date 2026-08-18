@@ -3,20 +3,24 @@ from graph.state import FinalAnswerResult
 
 def format_youtube_research_query(
     central_claim: str,
-    relevant_context: str,
+    relevant_context: str = "",
 ) -> str:
     """Build a deterministic search brief for one YouTube claim."""
-    return "\n\n".join([
+    parts = [
         "Verifique exclusivamente esta alegação central do vídeo:",
         f'"{central_claim.strip()}"',
-        "Contexto do vídeo diretamente relacionado à alegação:",
-        relevant_context.strip(),
-        (
-            "Pesquise evidências que confirmem, contradigam ou contextualizem "
-            "essa formulação exata. Não transforme informações de apoio, "
-            "opiniões ou outros assuntos do vídeo em alegações independentes."
-        ),
-    ])
+    ]
+    if relevant_context.strip():
+        parts.extend([
+            "Contexto essencial do vídeo diretamente relacionado à alegação:",
+            relevant_context.strip(),
+        ])
+    parts.append(
+        "Pesquise evidências que confirmem, contradigam ou contextualizem "
+        "essa formulação exata. Não transforme informações de apoio, "
+        "opiniões ou outros assuntos do vídeo em alegações independentes."
+    )
+    return "\n\n".join(parts)
 
 
 def build_youtube_clarification_answer(reason: str | None) -> FinalAnswerResult:

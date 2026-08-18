@@ -19,6 +19,7 @@ class ReanalysisState(TypedDict):
     original_final_answer: FinalAnswerResult
     media_contexts: Annotated[list[AgentOutput], operator.add]
     youtube_central_claim: NotRequired[str]
+    youtube_research_context: NotRequired[str]
     youtube_requires_clarification: NotRequired[bool]
     youtube_clarification_reason: NotRequired[str]
     results: Annotated[list[AgentOutput], operator.add]

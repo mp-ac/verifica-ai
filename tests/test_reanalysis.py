@@ -272,6 +272,9 @@ class ReanalysisRoutingTest(unittest.TestCase):
             "O arquivamento da ação absolveu o investigado."
         )
         state["youtube_requires_clarification"] = False
+        state["youtube_research_context"] = (
+            "- O trecho diferencia arquivamento de absolvição."
+        )
         state["media_contexts"] = [{
             "source": "youtube_agent",
             "result": "Trecho relevante do vídeo.",
@@ -284,7 +287,8 @@ class ReanalysisRoutingTest(unittest.TestCase):
 
         self.assertIn("<foco_central_do_video>", query)
         self.assertIn("O arquivamento da ação absolveu", query)
-        self.assertIn("Trecho relevante do vídeo", query)
+        self.assertIn("diferencia arquivamento de absolvição", query)
+        self.assertNotIn("Trecho relevante do vídeo", query)
         self.assertIn("Texto adicional de uma imagem", query)
 
     def test_routes_original_image_through_image_agent(self) -> None:

@@ -66,17 +66,12 @@ def format_reanalysis_research_query(state: ReanalysisState) -> str:
     media_contexts = state.get("media_contexts", [])
     central_claim = state.get("youtube_central_claim")
     if central_claim:
-        youtube_context = next(
-            (
-                context["result"]
-                for context in media_contexts
-                if context["source"] == "youtube_agent"
-            ),
-            "Nenhum contexto adicional foi extraído.",
-        )
         parts.extend([
             "<foco_central_do_video>",
-            format_youtube_research_query(central_claim, youtube_context),
+            format_youtube_research_query(
+                central_claim,
+                state.get("youtube_research_context", ""),
+            ),
             "</foco_central_do_video>",
         ])
         media_contexts = [
