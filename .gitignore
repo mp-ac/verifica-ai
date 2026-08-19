@@ -29,3 +29,5 @@ Dockerfile
 docker-compose.yml
 prod.yml
 dev.yml
+
+testes_locais
