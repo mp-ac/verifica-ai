@@ -139,6 +139,10 @@ a versão da aplicação em metadata. Isso permite correlacionar a solicitação
 aceita com a execução do worker. Com `LANGSMITH_HIDE_INPUTS=true`, consultas,
 anexos, transcrições e prompts ficam ocultos. Com `LANGSMITH_HIDE_OUTPUTS=false`,
 respostas e retornos de ferramentas permanecem disponíveis para observação.
+Antes do envio, assinaturas opacas de raciocínio retornadas pelos modelos
+(`signature` e `thought_signature`) são removidas recursivamente da cópia dos
+inputs e outputs registrada no LangSmith. Os objetos usados pelo workflow não
+são alterados.
 Uma nova tentativa é registrada como `analyze_workflow_retry`, com a tag `retry`
 e os campos `retry_attempt` e `is_retry` na metadata. Todas as tentativas mantêm
 o mesmo `task_id`.
