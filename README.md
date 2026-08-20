@@ -1,6 +1,6 @@
 # VerificaAI
 
-Protótipo em Python para triagem e apuração assistida de possíveis fake news. O projeto nasceu para apoiar o combate à desinformação no período eleitoral e deve evoluir depois para cenários mais amplos de verificação de fatos.
+Aplicação em Python apoiar o combate à desinformação no período eleitoral e também atende a cenários mais amplos de verificação de fatos.
 
 O repositório está em nome do `Ministério Público do Estado do Acre` e segue uma proposta de inovação aberta: desenvolvimento institucional com colaboração da comunidade.
 
@@ -28,7 +28,7 @@ O que ainda não existe ou está incompleto:
 - API `FastAPI`;
 - persistência de casos, protocolos e revisão humana;
 
-## Como o protótipo funciona
+## Como a aplicação funciona
 
 O fluxo atual é:
 
@@ -523,7 +523,7 @@ Para permitir que o agente acesse URLs encontradas, você pode usar este projeto
 - os imports e o ponto de entrada ainda estão em transição para uma estrutura mais preparada para múltiplas interfaces;
 - a persistência no Qdrant é complementar e não substitui um banco transacional;
 - os modelos de embedding podem ser baixados e carregados no primeiro uso, exigindo espaço em disco e memória;
-- o README descreve o estado atual do protótipo, não a visão completa já pretendida para a plataforma final.
+- o README descreve o estado atual da aplicação, não toda a evolução pretendida para a plataforma.
 
 ## Roadmap curto
 
