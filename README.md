@@ -89,6 +89,8 @@ Principais grupos de configuração:
 - `IMAGE_*`: configuração opcional da LLM multimodal; sem `IMAGE_MODEL`, reutiliza `SEARCH_*`.
 - `YOUTUBE_*`: configuração opcional do Gemini para vídeos públicos; sem
   `YOUTUBE_MODEL`, reutiliza `IMAGE_*`.
+- `DUPLICATE_JUDGE_*`: configuração opcional do avaliador de candidatos
+  semânticos; sem `DUPLICATE_JUDGE_MODEL`, reutiliza `ROUTER_*`.
 - `ATTACHMENTS_MAX_ITEMS`: quantidade máxima de conteúdos aceitos em uma análise.
 - `ANALYZE_REQUESTS_DB_PATH`: banco SQLite dos registros de solicitações aceitas.
 - `RQ_RETRY_INTERVALS_SECONDS`: intervalos, em segundos, entre novas tentativas
@@ -108,7 +110,8 @@ exemplo, `30,60,120,300,600` permite cinco retries, preservando o mesmo
 `task_id`. Enquanto aguarda o próximo intervalo, o endpoint de status apresenta
 o job como `queued`.
 
-Para `ROUTER_*`, `SEARCH_*`, `IMAGE_*` e `YOUTUBE_*`, o contrato é sempre o mesmo:
+Para `ROUTER_*`, `SEARCH_*`, `IMAGE_*`, `YOUTUBE_*` e `DUPLICATE_JUDGE_*`, o
+contrato é sempre o mesmo:
 
 - `*_PROVIDER`: `google`, `openai` ou `vllm`
 - `*_MODEL`: nome do modelo
@@ -120,6 +123,10 @@ em `IMAGE_MODEL` precisa aceitar imagens como entrada.
 
 O agente do YouTube requer provider `google`. Quando `YOUTUBE_MODEL` não for
 informado, ele reutiliza o modelo multimodal configurado em `IMAGE_*`.
+
+O avaliador de duplicidade compara a consulta com até três candidatos
+semânticos e produz uma decisão estruturada. Esse componente ainda não está
+conectado ao worker do `/analyze`.
 
 ### LangSmith
 
@@ -207,6 +214,17 @@ YOUTUBE_MODEL=gemini-2.5-flash
 YOUTUBE_API_KEY=sua_chave_google
 YOUTUBE_BASE_URL=
 YOUTUBE_TIMEOUT=300
+```
+
+Configuração opcional dedicada ao avaliador de duplicidade:
+
+```env
+DUPLICATE_JUDGE_PROVIDER=vllm
+DUPLICATE_JUDGE_MODEL=Qwen/Qwen3-8B-FP8
+DUPLICATE_JUDGE_API_KEY=sua_chave_vllm
+DUPLICATE_JUDGE_BASE_URL=https://seu-endpoint/v1
+DUPLICATE_JUDGE_TEMPERATURE=0.0
+DUPLICATE_JUDGE_TIMEOUT=120
 ```
 
 ### Conteúdos recebidos
