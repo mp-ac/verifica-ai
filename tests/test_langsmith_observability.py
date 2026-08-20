@@ -75,6 +75,48 @@ class LangSmithObservabilityTest(unittest.TestCase):
             pass
 
         tracing_context.assert_called_once_with(client=client)
+        client.flush.assert_called_once_with()
+
+    @patch("observability.langsmith.tracing_context")
+    @patch("observability.langsmith._sanitized_client")
+    @patch("observability.langsmith.tracing_is_enabled", return_value=True)
+    def test_flushes_sanitized_client_when_workflow_fails(
+        self,
+        _tracing_enabled: Mock,
+        sanitized_client: Mock,
+        _tracing_context: Mock,
+    ) -> None:
+        client = Mock()
+        sanitized_client.return_value = client
+
+        with self.assertRaisesRegex(RuntimeError, "workflow failure"):
+            with sanitized_langsmith_tracing():
+                raise RuntimeError("workflow failure")
+
+        client.flush.assert_called_once_with()
+
+    @patch("observability.langsmith.logger")
+    @patch("observability.langsmith.tracing_context")
+    @patch("observability.langsmith._sanitized_client")
+    @patch("observability.langsmith.tracing_is_enabled", return_value=True)
+    def test_does_not_fail_workflow_when_sanitized_flush_fails(
+        self,
+        _tracing_enabled: Mock,
+        sanitized_client: Mock,
+        _tracing_context: Mock,
+        logger: Mock,
+    ) -> None:
+        client = Mock()
+        client.flush.side_effect = RuntimeError("flush failure")
+        sanitized_client.return_value = client
+
+        with sanitized_langsmith_tracing():
+            result = "done"
+
+        self.assertEqual(result, "done")
+        logger.exception.assert_called_once_with(
+            "Falha ao finalizar traces sanitizados do LangSmith."
+        )
 
     @patch("observability.langsmith.tracing_context")
     @patch("observability.langsmith._sanitized_client")

@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 from functools import lru_cache
@@ -6,6 +7,8 @@ from typing import Any
 from langsmith import Client, tracing_context
 from langsmith.utils import tracing_is_enabled
 
+
+logger = logging.getLogger(__name__)
 
 _SIGNATURE_KEYS = {"signature", "thoughtsignature"}
 
@@ -40,5 +43,12 @@ def sanitized_langsmith_tracing() -> Iterator[None]:
         yield
         return
 
-    with tracing_context(client=_sanitized_client()):
-        yield
+    client = _sanitized_client()
+    try:
+        with tracing_context(client=client):
+            yield
+    finally:
+        try:
+            client.flush()
+        except Exception:
+            logger.exception("Falha ao finalizar traces sanitizados do LangSmith.")
