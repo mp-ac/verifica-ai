@@ -10,6 +10,7 @@ from graph.workflow import workflow
 from jobs.execution_metadata import build_execution_metadata
 from jobs.result_dispatch import dispatch_completed_result
 from observability.langsmith import sanitized_langsmith_tracing
+from similarity.shadow import run_duplicate_check_shadow
 from utils.attachments import normalize_attachments
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
@@ -64,6 +65,12 @@ def _process_analyze_job(
     retry_attempt: int = 0,
 ) -> dict:
     started_at = perf_counter()
+    run_duplicate_check_shadow(
+        query,
+        attachments or [],
+        task_id=task_id,
+        retry_attempt=retry_attempt,
+    )
     normalized_attachments = normalize_attachments(
         query,
         attachments or [],

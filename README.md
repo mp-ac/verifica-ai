@@ -102,6 +102,9 @@ Principais grupos de configuração:
   privadas para um bucket do Google Cloud Storage.
 - `FINAL_RESULTS_*`: fila e API de destino das respostas finais.
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
+- `SEMANTIC_RETRIEVER_*`: consulta opcional de análises anteriores, usando um
+  token do Qdrant no header `api-key`; sem collection dedicada, reutiliza
+  `QDRANT_COLLECTION_NAME`.
 - `LANGSMITH_*`: tracing opcional dos workflows executados pelos workers.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
@@ -125,8 +128,20 @@ O agente do YouTube requer provider `google`. Quando `YOUTUBE_MODEL` não for
 informado, ele reutiliza o modelo multimodal configurado em `IMAGE_*`.
 
 O avaliador de duplicidade compara a consulta com até três candidatos
-semânticos e produz uma decisão estruturada. Esse componente ainda não está
-conectado ao worker do `/analyze`.
+semânticos e produz uma decisão estruturada. Ele é executado pelo worker apenas
+em modo sombra e ainda não interfere no resultado da análise.
+
+O worker executa a verificação de duplicidade em modo sombra antes do workflow.
+A recuperação diferencia URL exata de candidatos semânticos, ignora
+solicitações com anexos explícitos e segue com o fluxo normal quando o endpoint
+ou o avaliador ficam indisponíveis. O resultado ainda não altera a resposta do
+`/analyze` nem é enviado ao painel.
+
+No LangSmith, o trace `duplicate_check` registra apenas metadata segura: outcome,
+quantidade de candidatos, IDs, tipos, ranks, scores, decisão e confiança. A
+consulta, os textos dos candidatos, o motivo do avaliador e as credenciais não
+são incluídos nessa metadata. Mantenha `LANGSMITH_HIDE_INPUTS=true` para ocultar
+também as entradas capturadas automaticamente pela chamada ao modelo.
 
 ### LangSmith
 
