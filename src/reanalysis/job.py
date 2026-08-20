@@ -6,6 +6,7 @@ from langchain_core.tracers.langchain import wait_for_all_tracers
 from rq import get_current_job
 
 from jobs.execution_metadata import build_execution_metadata
+from observability.langsmith import sanitized_langsmith_tracing
 from reanalysis.graph.workflow import reanalysis_workflow
 from reanalysis.schemas import PanelFinalResult
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
@@ -21,21 +22,22 @@ def process_reanalyze_job(
 ) -> dict:
     job = get_current_job()
     task_id = job.id if job is not None else None
-    try:
-        return _process_reanalyze_job(
-            reanalysis_id,
-            final_result_data,
-            prompt,
-            task_id=task_id,
-        )
-    finally:
-        if job is not None:
-            try:
-                wait_for_all_tracers()
-            except Exception:
-                logger.exception(
-                    "Falha ao finalizar traces da reanálise no LangSmith."
-                )
+    with sanitized_langsmith_tracing():
+        try:
+            return _process_reanalyze_job(
+                reanalysis_id,
+                final_result_data,
+                prompt,
+                task_id=task_id,
+            )
+        finally:
+            if job is not None:
+                try:
+                    wait_for_all_tracers()
+                except Exception:
+                    logger.exception(
+                        "Falha ao finalizar traces da reanálise no LangSmith."
+                    )
 
 
 def _process_reanalyze_job(

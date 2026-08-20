@@ -9,6 +9,7 @@ from config import ATTACHMENTS_MAX_ITEMS
 from graph.workflow import workflow
 from jobs.execution_metadata import build_execution_metadata
 from jobs.result_dispatch import dispatch_completed_result
+from observability.langsmith import sanitized_langsmith_tracing
 from utils.attachments import normalize_attachments
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
@@ -37,20 +38,21 @@ def process_analyze_job(
     job = get_current_job()
     task_id = job.id if job is not None else None
     retry_attempt = _retry_attempt(job)
-    try:
-        return _process_analyze_job(
-            query,
-            attachments,
-            requester,
-            task_id=task_id,
-            retry_attempt=retry_attempt,
-        )
-    finally:
-        if job is not None:
-            try:
-                wait_for_all_tracers()
-            except Exception:
-                logger.exception("Falha ao finalizar traces do LangSmith.")
+    with sanitized_langsmith_tracing():
+        try:
+            return _process_analyze_job(
+                query,
+                attachments,
+                requester,
+                task_id=task_id,
+                retry_attempt=retry_attempt,
+            )
+        finally:
+            if job is not None:
+                try:
+                    wait_for_all_tracers()
+                except Exception:
+                    logger.exception("Falha ao finalizar traces do LangSmith.")
 
 
 def _process_analyze_job(
