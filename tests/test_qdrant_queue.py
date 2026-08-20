@@ -43,6 +43,23 @@ class QdrantQueueTest(unittest.TestCase):
             "error": None,
         }
 
+    def test_new_collection_indexes_canonical_url_keys(self) -> None:
+        from qdrant import ensure_collection
+        from qdrant_client import models
+
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = False
+        qdrant_client.get_embedding_size.return_value = 1024
+
+        ensure_collection(qdrant_client, "verifica-ai")
+
+        qdrant_client.create_payload_index.assert_called_once_with(
+            collection_name="verifica-ai",
+            field_name="url_keys",
+            field_schema=models.PayloadSchemaType.KEYWORD,
+            wait=True,
+        )
+
     @patch.dict(
         os.environ,
         {"QDRANT_ENABLED": "true", "APP_VERSION": "test-version"},
@@ -396,7 +413,10 @@ class QdrantQueueTest(unittest.TestCase):
         )
 
         result = save_final_answer(
-            query="Lula foi preso?",
+            query=(
+                "Lula foi preso? "
+                "https://www.youtube.com/watch?v=video-id"
+            ),
             final_answer=final_answer,
             point_id="task-id",
             collection_name="verifica-ai",
@@ -428,8 +448,15 @@ class QdrantQueueTest(unittest.TestCase):
             {
                 "text": document_text,
                 "meta": "verifica-ai-test",
-                "query": "Lula foi preso?",
+                "query": (
+                    "Lula foi preso? "
+                    "https://www.youtube.com/watch?v=video-id"
+                ),
                 "title": "Situação judicial de Lula",
+                "urls": [
+                    "https://www.youtube.com/watch?v=video-id"
+                ],
+                "url_keys": ["youtube:video-id"],
             },
         )
         self.assertNotIn(final_answer.answer, str(point.payload))
@@ -438,6 +465,17 @@ class QdrantQueueTest(unittest.TestCase):
             collection_name="verifica-ai",
             points=[point],
             wait=True,
+        )
+
+    def test_qdrant_document_uses_only_title_for_url_only_query(self) -> None:
+        from qdrant import build_qdrant_document_text
+
+        self.assertEqual(
+            build_qdrant_document_text(
+                "https://www.youtube.com/watch?v=video-id",
+                "Pablo Marçal demonstra descontrole",
+            ),
+            "Título: Pablo Marçal demonstra descontrole",
         )
 
     @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})

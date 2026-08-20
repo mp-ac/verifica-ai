@@ -45,7 +45,7 @@ O fluxo atual é:
 O point salvo no Qdrant usa o ID do job RQ como identificador e contém:
 
 - os vetores nomeados `dense`, `sparse` e `colbert`;
-- o payload `text`, `meta`, `query` e `title`.
+- o payload `text`, `meta`, `query`, `title`, `urls` e `url_keys`.
 
 O uso do ID do job evita a criação de pontos duplicados caso uma mesma execução
 seja repetida.
@@ -419,9 +419,13 @@ usados para gerar os embeddings dense, sparse e ColBERT. O payload mantém apena
 o texto indexado, a identificação da aplicação, a pergunta e o título; resposta,
 fontes e classificação permanecem fora do Qdrant. O prefixo de classificação do
 título também é removido para não interferir na similaridade. A formatação exibida
-no painel não é alterada. `QDRANT_TIMEOUT_SECONDS` limita cada operação de rede do
-cliente, enquanto `QDRANT_JOB_TIMEOUT_SECONDS` limita o job completo, incluindo
-carregamento dos modelos e geração dos embeddings.
+no painel não é alterada. URLs também ficam fora dos embeddings: são preservadas
+em `urls` e normalizadas em `url_keys` para futuras correspondências exatas. URLs
+equivalentes de `watch`, `youtu.be`, `shorts`, `live` e `embed` compartilham a chave
+`youtube:{video_id}`. A collection cria um índice `keyword` para `url_keys`.
+`QDRANT_TIMEOUT_SECONDS` limita cada operação de rede do cliente, enquanto
+`QDRANT_JOB_TIMEOUT_SECONDS` limita o job completo, incluindo o carregamento dos
+modelos e a geração dos embeddings.
 
 O serviço `verificaai-qdrant-worker` usa a mesma imagem da API e deve ser executado
 somente nos deployments em que `QDRANT_ENABLED=true`.
