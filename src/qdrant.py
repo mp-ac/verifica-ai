@@ -1,7 +1,9 @@
 import logging
 import os
 import uuid
+from datetime import datetime, timezone
 from functools import cache
+from typing import Any
 
 from dotenv import load_dotenv
 from fastembed import (
@@ -9,7 +11,10 @@ from fastembed import (
     SparseTextEmbedding,
     TextEmbedding,
 )
+from langchain_core.tracers.langchain import wait_for_all_tracers
+from langsmith import trace
 from qdrant_client import QdrantClient, models
+from rq import get_current_job
 
 from graph.state import FinalAnswerResult
 from queueing import qdrant_enabled
@@ -111,14 +116,83 @@ def store_qdrant_result_job(
     final_answer: dict,
     point_id: str | None = None,
 ) -> str | None:
+    """Persist a validated result and flush its standalone LangSmith trace.
+
+    Qdrant failures remain visible to RQ so its retry policy can run, while
+    tracing and trace-flush failures are logged without changing the job result.
+    """
     if not qdrant_enabled():
         return None
 
-    return save_final_answer(
-        query=query,
-        final_answer=FinalAnswerResult.model_validate(final_answer),
-        point_id=point_id,
-    )
+    job = get_current_job()
+    started_at = datetime.now(timezone.utc)
+    try:
+        try:
+            stored_point_id = save_final_answer(
+                query=query,
+                final_answer=FinalAnswerResult.model_validate(final_answer),
+                point_id=point_id,
+            )
+        except Exception as exc:
+            _trace_qdrant_store(
+                point_id,
+                job=job,
+                started_at=started_at,
+                stored=False,
+                error=type(exc).__name__,
+            )
+            raise
+
+        _trace_qdrant_store(
+            point_id,
+            job=job,
+            started_at=started_at,
+            stored=True,
+            stored_point_id=stored_point_id,
+        )
+        return stored_point_id
+    finally:
+        if job is not None:
+            try:
+                wait_for_all_tracers()
+            except Exception:
+                logger.exception(
+                    "Falha ao finalizar trace de persistencia no Qdrant."
+                )
+
+
+def _trace_qdrant_store(
+    task_id: str | None,
+    *,
+    job: Any,
+    started_at: datetime,
+    stored: bool,
+    stored_point_id: str | None = None,
+    error: str | None = None,
+) -> None:
+    """Record sanitized Qdrant persistence metadata in an isolated trace."""
+    try:
+        with trace(
+            "verificaai_qdrant_store",
+            inputs={"task_id": task_id},
+            tags=["flow:qdrant_store"],
+            metadata={
+                "task_id": task_id,
+                "app_version": os.getenv("APP_VERSION", "0.0.1"),
+                "rq_job_id": getattr(job, "id", None),
+                "rq_retries_left": getattr(job, "retries_left", None),
+                "collection": COLLECTION_NAME,
+            },
+            parent="ignore",
+            start_time=started_at,
+        ) as run:
+            outputs = {"stored": stored}
+            if stored_point_id is not None:
+                outputs["point_id"] = stored_point_id
+
+            run.end(outputs=outputs, error=error)
+    except Exception:
+        logger.exception("Falha ao registrar trace de persistencia no Qdrant.")
 
 
 def save_final_answer(

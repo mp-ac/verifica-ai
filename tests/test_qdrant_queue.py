@@ -254,15 +254,29 @@ class QdrantQueueTest(unittest.TestCase):
         self.assertEqual(result["status"], "done")
         logger.warning.assert_called_once()
 
-    @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
+    @patch.dict(
+        os.environ,
+        {"QDRANT_ENABLED": "true", "APP_VERSION": "test-version"},
+    )
+    @patch("qdrant.get_current_job")
+    @patch("qdrant.wait_for_all_tracers")
+    @patch("qdrant.trace")
     @patch("qdrant.save_final_answer")
     def test_qdrant_job_validates_payload_and_preserves_point_id(
         self,
         save_final_answer: Mock,
+        trace: Mock,
+        wait_for_tracers: Mock,
+        get_current_job: Mock,
     ) -> None:
-        from qdrant import store_qdrant_result_job
+        from qdrant import COLLECTION_NAME, store_qdrant_result_job
 
         save_final_answer.return_value = "task-id"
+        trace_run = trace.return_value.__enter__.return_value
+        get_current_job.return_value = SimpleNamespace(
+            id="qdrant-job-id",
+            retries_left=2,
+        )
 
         result = store_qdrant_result_job(
             query="Consulta",
@@ -275,14 +289,53 @@ class QdrantQueueTest(unittest.TestCase):
         self.assertEqual(call["query"], "Consulta")
         self.assertIsInstance(call["final_answer"], FinalAnswerResult)
         self.assertEqual(call["point_id"], "task-id")
+        trace.assert_called_once_with(
+            "verificaai_qdrant_store",
+            inputs={"task_id": "task-id"},
+            tags=["flow:qdrant_store"],
+            metadata={
+                "task_id": "task-id",
+                "app_version": "test-version",
+                "rq_job_id": "qdrant-job-id",
+                "rq_retries_left": 2,
+                "collection": COLLECTION_NAME,
+            },
+            parent="ignore",
+            start_time=trace.call_args.kwargs["start_time"],
+        )
+        trace_run.end.assert_called_once_with(
+            outputs={"stored": True, "point_id": "task-id"},
+            error=None,
+        )
+        wait_for_tracers.assert_called_once_with()
+
+        traced_data = {
+            **trace.call_args.kwargs["inputs"],
+            **trace.call_args.kwargs["metadata"],
+            **trace_run.end.call_args.kwargs["outputs"],
+        }
+        self.assertNotIn("Consulta", str(traced_data))
+        self.assertNotIn("Resposta final", str(traced_data))
 
     @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
+    @patch("qdrant.get_current_job")
+    @patch("qdrant.wait_for_all_tracers")
+    @patch("qdrant.trace")
     @patch("qdrant.save_final_answer", side_effect=RuntimeError("Qdrant offline"))
     def test_qdrant_job_propagates_failure_for_rq_retry(
         self,
         save_final_answer: Mock,
+        trace: Mock,
+        wait_for_tracers: Mock,
+        get_current_job: Mock,
     ) -> None:
         from qdrant import store_qdrant_result_job
+
+        trace_run = trace.return_value.__enter__.return_value
+        get_current_job.return_value = SimpleNamespace(
+            id="qdrant-job-id",
+            retries_left=1,
+        )
 
         with self.assertRaisesRegex(RuntimeError, "Qdrant offline"):
             store_qdrant_result_job(
@@ -290,6 +343,73 @@ class QdrantQueueTest(unittest.TestCase):
                 final_answer={"answer": "Resposta final", "sources": []},
                 point_id="task-id",
             )
+
+        trace_run.end.assert_called_once_with(
+            outputs={"stored": False},
+            error="RuntimeError",
+        )
+        wait_for_tracers.assert_called_once_with()
+
+    @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
+    @patch("qdrant.logger")
+    @patch("qdrant.get_current_job")
+    @patch("qdrant.wait_for_all_tracers")
+    @patch("qdrant.trace", side_effect=RuntimeError("LangSmith indisponivel"))
+    @patch("qdrant.save_final_answer", return_value="task-id")
+    def test_trace_failure_does_not_fail_qdrant_store(
+        self,
+        _save_final_answer: Mock,
+        _trace: Mock,
+        _wait_for_tracers: Mock,
+        get_current_job: Mock,
+        logger: Mock,
+    ) -> None:
+        from qdrant import store_qdrant_result_job
+
+        get_current_job.return_value = SimpleNamespace(id="qdrant-job-id")
+
+        result = store_qdrant_result_job(
+            query="Consulta",
+            final_answer={"answer": "Resposta final", "sources": []},
+            point_id="task-id",
+        )
+
+        self.assertEqual(result, "task-id")
+        logger.exception.assert_called_once_with(
+            "Falha ao registrar trace de persistencia no Qdrant."
+        )
+
+    @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
+    @patch("qdrant.logger")
+    @patch("qdrant.get_current_job")
+    @patch(
+        "qdrant.wait_for_all_tracers",
+        side_effect=RuntimeError("LangSmith indisponivel"),
+    )
+    @patch("qdrant.trace")
+    @patch("qdrant.save_final_answer", return_value="task-id")
+    def test_trace_flush_failure_does_not_fail_qdrant_store(
+        self,
+        _save_final_answer: Mock,
+        _trace: Mock,
+        _wait_for_tracers: Mock,
+        get_current_job: Mock,
+        logger: Mock,
+    ) -> None:
+        from qdrant import store_qdrant_result_job
+
+        get_current_job.return_value = SimpleNamespace(id="qdrant-job-id")
+
+        result = store_qdrant_result_job(
+            query="Consulta",
+            final_answer={"answer": "Resposta final", "sources": []},
+            point_id="task-id",
+        )
+
+        self.assertEqual(result, "task-id")
+        logger.exception.assert_called_once_with(
+            "Falha ao finalizar trace de persistencia no Qdrant."
+        )
 
     @patch.dict(
         os.environ,
