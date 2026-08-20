@@ -38,14 +38,14 @@ O fluxo atual é:
 4. imagens, áudios e vídeos são processados em paralelo e convertidos em contexto textual;
 5. o agente de busca usa ferramentas externas para apuração;
 6. o router sintetiza a resposta final;
-7. se o Qdrant estiver habilitado, a persistência da pergunta e da resposta final
+7. se o Qdrant estiver habilitado, a persistência da pergunta e do título final
    é enviada para uma fila dedicada;
 8. o worker do Qdrant gera os embeddings e armazena um único point na collection.
 
 O point salvo no Qdrant usa o ID do job RQ como identificador e contém:
 
 - os vetores nomeados `dense`, `sparse` e `colbert`;
-- o payload `text`, `meta`, `query`, `answer` e `sources`.
+- o payload `text`, `meta`, `query` e `title`.
 
 O uso do ID do job evita a criação de pontos duplicados caso uma mesma execução
 seja repetida.
@@ -414,11 +414,14 @@ QDRANT_API_PORT=443
 QDRANT_TIMEOUT_SECONDS=60
 ```
 
-Cada resposta final é persistida como um único point. A pergunta e a resposta
-são usadas para gerar os embeddings dense, sparse e ColBERT, enquanto as fontes
-e os demais dados permanecem disponíveis no payload. `QDRANT_TIMEOUT_SECONDS`
-limita cada operação de rede do cliente, enquanto `QDRANT_JOB_TIMEOUT_SECONDS`
-limita o job completo, incluindo carregamento dos modelos e geração dos embeddings.
+Cada análise final é persistida como um único point. A pergunta e o título são
+usados para gerar os embeddings dense, sparse e ColBERT. O payload mantém apenas
+o texto indexado, a identificação da aplicação, a pergunta e o título; resposta,
+fontes e classificação permanecem fora do Qdrant. O prefixo de classificação do
+título também é removido para não interferir na similaridade. A formatação exibida
+no painel não é alterada. `QDRANT_TIMEOUT_SECONDS` limita cada operação de rede do
+cliente, enquanto `QDRANT_JOB_TIMEOUT_SECONDS` limita o job completo, incluindo
+carregamento dos modelos e geração dos embeddings.
 
 O serviço `verificaai-qdrant-worker` usa a mesma imagem da API e deve ser executado
 somente nos deployments em que `QDRANT_ENABLED=true`.

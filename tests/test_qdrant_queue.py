@@ -350,6 +350,96 @@ class QdrantQueueTest(unittest.TestCase):
         )
         wait_for_tracers.assert_called_once_with()
 
+    @patch.dict(os.environ, {"APP_NAME": "verifica-ai-test"})
+    @patch("qdrant.get_colbert_model")
+    @patch("qdrant.get_sparse_model")
+    @patch("qdrant.get_dense_model")
+    @patch("qdrant.ensure_collection")
+    @patch("qdrant.get_qdrant_client")
+    def test_qdrant_point_indexes_only_query_and_title(
+        self,
+        get_qdrant_client: Mock,
+        ensure_collection: Mock,
+        get_dense_model: Mock,
+        get_sparse_model: Mock,
+        get_colbert_model: Mock,
+    ) -> None:
+        from qdrant import save_final_answer
+
+        dense_embedding = Mock()
+        dense_embedding.tolist.return_value = [0.1, 0.2]
+        sparse_embedding = Mock()
+        sparse_embedding.as_object.return_value = {
+            "indices": [1],
+            "values": [0.3],
+        }
+        colbert_embedding = Mock()
+        colbert_embedding.tolist.return_value = [[0.4, 0.5]]
+        get_dense_model.return_value.passage_embed.return_value = iter(
+            [dense_embedding]
+        )
+        get_sparse_model.return_value.passage_embed.return_value = iter(
+            [sparse_embedding]
+        )
+        get_colbert_model.return_value.passage_embed.return_value = iter(
+            [colbert_embedding]
+        )
+        final_answer = FinalAnswerResult(
+            title="FALSO: Situação judicial de Lula",
+            answer="Resposta que não deve ser indexada.",
+            sources=[
+                {
+                    "title": "Fonte sigilosa para este teste",
+                    "url": "https://example.test/fonte",
+                }
+            ],
+        )
+
+        result = save_final_answer(
+            query="Lula foi preso?",
+            final_answer=final_answer,
+            point_id="task-id",
+            collection_name="verifica-ai",
+        )
+
+        self.assertEqual(result, "task-id")
+        qdrant_client = get_qdrant_client.return_value
+        ensure_collection.assert_called_once_with(
+            qdrant_client,
+            "verifica-ai",
+        )
+        document_text = (
+            "Pergunta: Lula foi preso?\n\n"
+            "Título: Situação judicial de Lula"
+        )
+        get_dense_model.return_value.passage_embed.assert_called_once_with(
+            [document_text]
+        )
+        get_sparse_model.return_value.passage_embed.assert_called_once_with(
+            [document_text]
+        )
+        get_colbert_model.return_value.passage_embed.assert_called_once_with(
+            [document_text]
+        )
+        point = qdrant_client.upsert.call_args.kwargs["points"][0]
+        self.assertEqual(point.id, "task-id")
+        self.assertEqual(
+            point.payload,
+            {
+                "text": document_text,
+                "meta": "verifica-ai-test",
+                "query": "Lula foi preso?",
+                "title": "Situação judicial de Lula",
+            },
+        )
+        self.assertNotIn(final_answer.answer, str(point.payload))
+        self.assertNotIn("example.test", str(point.payload))
+        qdrant_client.upsert.assert_called_once_with(
+            collection_name="verifica-ai",
+            points=[point],
+            wait=True,
+        )
+
     @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
     @patch("qdrant.logger")
     @patch("qdrant.get_current_job")
