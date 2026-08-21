@@ -44,9 +44,23 @@ class TokenResponse(BaseModel):
     id: int
     application_id: UUID
     name: str
-    token: str
+    token_preview: Optional[str] = Field(
+        default=None,
+        description="Prévia mascarada do token (primeiros e últimos 4 caracteres).",
+    )
     active: bool
     created_at: datetime
+
+
+class TokenCreateResponse(TokenResponse):
+    """Returned only on POST /admin/tokens — includes the plaintext token."""
+    token: Optional[str] = Field(
+        default=None,
+        description=(
+            "Token em texto claro. Retornado somente na criação (POST). "
+            "Nas demais operações o campo é omitido."
+        ),
+    )
 
 
 class TokenListResponse(BaseModel):

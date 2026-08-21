@@ -1,6 +1,7 @@
 from .config import build_auth_config_from_env, configure_auth
 from .models import (
     TokenCreateRequest,
+    TokenCreateResponse,
     TokenListResponse,
     TokenResponse,
     TokenUpdateRequest,
@@ -10,6 +11,7 @@ from .validators import get_token_repo, verify_admin_token, verify_bearer_token
 
 __all__ = [
     "TokenCreateRequest",
+    "TokenCreateResponse",
     "TokenListResponse",
     "TokenRepository",
     "TokenResponse",
