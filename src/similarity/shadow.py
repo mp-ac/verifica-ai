@@ -1,6 +1,5 @@
 import logging
 import os
-from datetime import datetime, timezone
 
 from langsmith import trace
 
@@ -58,7 +57,6 @@ def run_duplicate_check_shadow(
                 "shadow_mode": True,
             },
             parent="ignore",
-            start_time=datetime.now(timezone.utc),
         ) as run:
             try:
                 result = check_duplicate_analysis(query, attachments)
