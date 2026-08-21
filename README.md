@@ -129,13 +129,15 @@ informado, ele reutiliza o modelo multimodal configurado em `IMAGE_*`.
 
 O avaliador de duplicidade compara a consulta com até três candidatos
 semânticos e produz uma decisão estruturada. Ele é executado pelo worker apenas
-em modo sombra e ainda não interfere no resultado da análise.
+em modo consultivo e não interrompe a execução dos agentes.
 
-O worker executa a verificação de duplicidade em modo sombra antes do workflow.
+O worker executa a verificação de duplicidade em modo consultivo antes do workflow.
 A recuperação diferencia URL exata de candidatos semânticos, ignora
 solicitações com anexos explícitos e segue com o fluxo normal quando o endpoint
-ou o avaliador ficam indisponíveis. O resultado ainda não altera a resposta do
-`/analyze` nem é enviado ao painel.
+ou o avaliador ficam indisponíveis. O `POST /analyze` continua respondendo apenas
+com a aceitação do job. Ao término, `/status/{task_id}` e a entrega ao painel
+incluem um resumo seguro em `duplicate_check`, sem textos recuperados ou o motivo
+produzido pelo avaliador.
 
 No LangSmith, o trace `duplicate_check` registra apenas metadata segura: outcome,
 quantidade de candidatos, IDs, tipos, ranks, scores, decisão e confiança. A
@@ -502,6 +504,12 @@ o `task_id` da execução:
       "is_classified": true
     }
   },
+  "duplicate_check": {
+    "outcome": "match",
+    "candidate_task_id": "uuid-da-analise-anterior",
+    "match_type": "semantic",
+    "confidence": "high"
+  },
   "execution": {
     "models": [
       {
@@ -526,6 +534,12 @@ o `task_id` da execução:
   "error": null
 }
 ```
+
+`duplicate_check.outcome` pode ser `match`, `exact_match`, `no_match`,
+`uncertain`, `skipped` ou `unavailable`. Somente correspondências confirmadas
+expõem `candidate_task_id` e `match_type`; a confiança é informada para a
+correspondência semântica. O workflow dos agentes continua sendo executado em
+todos os casos.
 
 `duration_ms` mede somente a execução do workflow dos agentes. O tempo de
 enfileiramento, entrega HTTP, geração de embeddings e persistência no Qdrant não

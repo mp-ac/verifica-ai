@@ -90,6 +90,43 @@ class AnalyzeRetryApiTest(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response.status, "queued")
 
+    @patch("main.Job.fetch")
+    async def test_finished_analysis_exposes_duplicate_check(
+        self,
+        fetch_job: Mock,
+    ) -> None:
+        from main import get_status
+
+        fetch_job.return_value = SimpleNamespace(
+            is_queued=False,
+            is_scheduled=False,
+            is_started=False,
+            is_finished=True,
+            is_failed=False,
+            result={
+                "status": "done",
+                "query": "Consulta",
+                "attachments": [],
+                "final_answer": None,
+                "duplicate_check": {
+                    "outcome": "exact_match",
+                    "candidate_task_id": "candidate-task-id",
+                    "match_type": "exact_url",
+                    "confidence": None,
+                },
+                "execution": None,
+            },
+        )
+
+        response = await get_status("task-id")
+
+        self.assertEqual(response.status, "done")
+        self.assertEqual(response.duplicate_check.outcome, "exact_match")
+        self.assertEqual(
+            response.duplicate_check.candidate_task_id,
+            "candidate-task-id",
+        )
+
 
 class AnalysisWorkerTest(unittest.TestCase):
     @patch("workers.analysis.Worker")

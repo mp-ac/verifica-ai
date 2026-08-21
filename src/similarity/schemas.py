@@ -57,6 +57,22 @@ class DuplicateAnalysisJudgeResult(BaseModel):
     model_usage: dict[str, int]
 
 
+class DuplicateCheckSummary(BaseModel):
+    """Safe duplicate-check data exposed to API consumers."""
+
+    outcome: Literal[
+        "skipped",
+        "exact_match",
+        "match",
+        "no_match",
+        "uncertain",
+        "unavailable",
+    ]
+    candidate_task_id: str | None = None
+    match_type: Literal["exact_url", "semantic"] | None = None
+    confidence: Literal["high", "medium", "low"] | None = None
+
+
 class DuplicateCheckResult(BaseModel):
     """Outcome of duplicate retrieval and optional LLM evaluation."""
 
@@ -72,7 +88,7 @@ class DuplicateCheckResult(BaseModel):
     candidates: list[RetrievedCandidate] = Field(default_factory=list)
     evaluation: DuplicateAnalysisDecision | None = None
     model_usage: dict[str, int] = Field(default_factory=dict)
-    failure_stage: Literal["retriever", "judge"] | None = None
+    failure_stage: Literal["retriever", "judge", "worker"] | None = None
 
     @model_validator(mode="after")
     def validate_outcome(self) -> "DuplicateCheckResult":
@@ -84,3 +100,26 @@ class DuplicateCheckResult(BaseModel):
         if self.outcome != "unavailable" and self.failure_stage is not None:
             raise ValueError("Somente indisponibilidade pode informar a etapa.")
         return self
+
+    def to_summary(self) -> DuplicateCheckSummary:
+        """Return only the fields required by status and panel consumers."""
+        if self.outcome == "exact_match":
+            return DuplicateCheckSummary(
+                outcome=self.outcome,
+                candidate_task_id=self.candidate_id,
+                match_type="exact_url",
+            )
+
+        if self.outcome == "match":
+            return DuplicateCheckSummary(
+                outcome=self.outcome,
+                candidate_task_id=self.candidate_id,
+                match_type="semantic",
+                confidence=(
+                    self.evaluation.confidence
+                    if self.evaluation is not None
+                    else None
+                ),
+            )
+
+        return DuplicateCheckSummary(outcome=self.outcome)

@@ -37,30 +37,35 @@ def _duplicate_check_trace_metadata(
     return metadata
 
 
-def run_duplicate_check_shadow(
+def run_duplicate_check(
     query: str | None,
     attachments: list[dict],
     *,
     task_id: str | None,
     retry_attempt: int,
-) -> None:
-    """Trace duplicate detection without changing the analysis result."""
+) -> DuplicateCheckResult:
+    """Trace and return duplicate detection without blocking the workflow."""
+    result = None
     try:
         with trace(
             "duplicate_check",
             inputs={"task_id": task_id},
-            tags=["flow:duplicate_check", "mode:shadow"],
+            tags=["flow:duplicate_check", "mode:advisory"],
             metadata={
                 "task_id": task_id,
                 "app_version": os.getenv("APP_VERSION", "0.0.1"),
                 "retry_attempt": retry_attempt,
-                "shadow_mode": True,
+                "advisory_mode": True,
             },
             parent="ignore",
         ) as run:
             try:
                 result = check_duplicate_analysis(query, attachments)
             except Exception as exc:
+                result = DuplicateCheckResult(
+                    outcome="unavailable",
+                    failure_stage="worker",
+                )
                 run.add_metadata({
                     "duplicate_check_outcome": "unavailable",
                     "failure_stage": "worker",
@@ -70,13 +75,27 @@ def run_duplicate_check_shadow(
                     error=type(exc).__name__,
                 )
                 logger.warning(
-                    "Verificação de duplicidade falhou no modo sombra."
+                    "Verificação de duplicidade falhou no modo consultivo."
                 )
-                return
+                return result
 
             run.add_metadata(_duplicate_check_trace_metadata(result))
             run.end(outputs={"completed": True})
+            return result
     except Exception:
         logger.warning(
             "Falha ao registrar trace da verificação de duplicidade."
         )
+        if result is not None:
+            return result
+
+        try:
+            return check_duplicate_analysis(query, attachments)
+        except Exception:
+            logger.warning(
+                "Verificação de duplicidade falhou fora do trace."
+            )
+            return DuplicateCheckResult(
+                outcome="unavailable",
+                failure_stage="worker",
+            )

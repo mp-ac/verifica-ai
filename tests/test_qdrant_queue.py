@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from graph.state import FinalAnswerResult
+from similarity.schemas import DuplicateAnalysisDecision, DuplicateCheckResult
 
 
 class QdrantQueueTest(unittest.TestCase):
@@ -70,8 +71,10 @@ class QdrantQueueTest(unittest.TestCase):
     @patch("jobs.analyze.get_current_job")
     @patch("jobs.analyze.wait_for_all_tracers")
     @patch("jobs.analyze.workflow.stream")
+    @patch("jobs.analyze.run_duplicate_check")
     def test_process_job_enqueues_qdrant_and_returns_done(
         self,
+        run_duplicate_check: Mock,
         stream: Mock,
         wait_for_tracers: Mock,
         get_analysis_job: Mock,
@@ -81,6 +84,16 @@ class QdrantQueueTest(unittest.TestCase):
     ) -> None:
         from jobs import process_analyze_job
 
+        run_duplicate_check.return_value = DuplicateCheckResult(
+            outcome="match",
+            candidate_id="candidate-task-id",
+            evaluation=DuplicateAnalysisDecision(
+                decision="match",
+                candidate_id="candidate-task-id",
+                confidence="high",
+                reason="As alegações são equivalentes.",
+            ),
+        )
         stream.return_value = self._workflow_updates()
         get_analysis_job.return_value = SimpleNamespace(id="task-id")
         get_current_job.return_value = SimpleNamespace(id="task-id")
@@ -150,6 +163,12 @@ class QdrantQueueTest(unittest.TestCase):
                             "classification": None,
                             "is_classified": False,
                         },
+                    },
+                    "duplicate_check": {
+                        "outcome": "match",
+                        "candidate_task_id": "candidate-task-id",
+                        "match_type": "semantic",
+                        "confidence": "high",
                     },
                     "execution": execution,
                     "error": None,
