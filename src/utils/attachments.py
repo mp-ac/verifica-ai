@@ -1,7 +1,7 @@
 import re
 from collections.abc import Iterable
 from pathlib import PurePosixPath
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlsplit
 
 from graph.state import Attachment
 
@@ -52,6 +52,13 @@ YOUTUBE_HOSTS = {
     "www.youtube-nocookie.com",
 }
 MAX_YOUTUBE_ATTACHMENTS = 1
+TRACKING_QUERY_PARAMETERS = {
+    "dclid",
+    "fbclid",
+    "gclid",
+    "mc_cid",
+    "mc_eid",
+}
 
 
 def extract_urls(query: str | None) -> list[str]:
@@ -65,24 +72,82 @@ def extract_urls(query: str | None) -> list[str]:
     ]
 
 
-def is_youtube_video_url(url: str) -> bool:
-    """Return whether a URL identifies one supported YouTube video."""
+def strip_urls(value: str) -> str:
+    """Remove HTTP(S) URLs and normalize the remaining whitespace."""
+    return " ".join(URL_PATTERN.sub(" ", value).split())
+
+
+def youtube_video_id(url: str) -> str | None:
+    """Return the stable video ID from one supported YouTube URL."""
     parsed = urlsplit(url)
     host = (parsed.hostname or "").lower()
     if parsed.scheme not in {"http", "https"} or host not in YOUTUBE_HOSTS:
-        return False
+        return None
 
     path_parts = [part for part in parsed.path.split("/") if part]
     if host in {"youtu.be", "www.youtu.be"}:
-        return bool(path_parts)
+        return path_parts[0] if path_parts else None
 
     if parsed.path == "/watch":
-        return bool(parse_qs(parsed.query).get("v", [""])[0].strip())
+        return parse_qs(parsed.query).get("v", [""])[0].strip() or None
 
-    return (
-        len(path_parts) >= 2
-        and path_parts[0] in {"embed", "live", "shorts"}
+    if len(path_parts) >= 2 and path_parts[0] in {
+        "embed",
+        "live",
+        "shorts",
+    }:
+        return path_parts[1]
+
+    return None
+
+
+def canonical_url_key(url: str) -> str | None:
+    """Return a stable key for exact URL matching without tracking data."""
+    video_id = youtube_video_id(url)
+    if video_id is not None:
+        return f"youtube:{video_id}"
+
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme not in {"http", "https"} or not host:
+        return None
+
+    try:
+        port = parsed.port
+    except ValueError:
+        return None
+
+    if port is not None and not (
+        (parsed.scheme == "http" and port == 80)
+        or (parsed.scheme == "https" and port == 443)
+    ):
+        host = f"{host}:{port}"
+
+    path = parsed.path.rstrip("/") or "/"
+    query_items = sorted(
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if not key.lower().startswith("utm_")
+        and key.lower() not in TRACKING_QUERY_PARAMETERS
     )
+    normalized_query = urlencode(query_items, doseq=True)
+    suffix = f"?{normalized_query}" if normalized_query else ""
+    return f"url:{host}{path}{suffix}"
+
+
+def extract_url_keys(query: str | None) -> list[str]:
+    """Return unique canonical keys for the URLs found in a query."""
+    keys: list[str] = []
+    for url in extract_urls(query):
+        key = canonical_url_key(url)
+        if key is not None and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def is_youtube_video_url(url: str) -> bool:
+    """Return whether a URL identifies one supported YouTube video."""
+    return youtube_video_id(url) is not None
 
 
 def infer_attachment_type(url: str, mime_type: str | None = None) -> str:

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from graph.state import FinalAnswerResult
+from similarity.schemas import DuplicateAnalysisDecision, DuplicateCheckResult
 
 
 class QdrantQueueTest(unittest.TestCase):
@@ -43,6 +44,23 @@ class QdrantQueueTest(unittest.TestCase):
             "error": None,
         }
 
+    def test_new_collection_indexes_canonical_url_keys(self) -> None:
+        from qdrant import ensure_collection
+        from qdrant_client import models
+
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = False
+        qdrant_client.get_embedding_size.return_value = 1024
+
+        ensure_collection(qdrant_client, "verifica-ai")
+
+        qdrant_client.create_payload_index.assert_called_once_with(
+            collection_name="verifica-ai",
+            field_name="url_keys",
+            field_schema=models.PayloadSchemaType.KEYWORD,
+            wait=True,
+        )
+
     @patch.dict(
         os.environ,
         {"QDRANT_ENABLED": "true", "APP_VERSION": "test-version"},
@@ -53,8 +71,10 @@ class QdrantQueueTest(unittest.TestCase):
     @patch("jobs.analyze.get_current_job")
     @patch("jobs.analyze.wait_for_all_tracers")
     @patch("jobs.analyze.workflow.stream")
+    @patch("jobs.analyze.run_duplicate_check")
     def test_process_job_enqueues_qdrant_and_returns_done(
         self,
+        run_duplicate_check: Mock,
         stream: Mock,
         wait_for_tracers: Mock,
         get_analysis_job: Mock,
@@ -64,6 +84,16 @@ class QdrantQueueTest(unittest.TestCase):
     ) -> None:
         from jobs import process_analyze_job
 
+        run_duplicate_check.return_value = DuplicateCheckResult(
+            outcome="match",
+            candidate_id="candidate-task-id",
+            evaluation=DuplicateAnalysisDecision(
+                decision="match",
+                candidate_id="candidate-task-id",
+                confidence="high",
+                reason="As alegações são equivalentes.",
+            ),
+        )
         stream.return_value = self._workflow_updates()
         get_analysis_job.return_value = SimpleNamespace(id="task-id")
         get_current_job.return_value = SimpleNamespace(id="task-id")
@@ -133,6 +163,12 @@ class QdrantQueueTest(unittest.TestCase):
                             "classification": None,
                             "is_classified": False,
                         },
+                    },
+                    "duplicate_check": {
+                        "outcome": "match",
+                        "candidate_task_id": "candidate-task-id",
+                        "match_type": "semantic",
+                        "confidence": "high",
                     },
                     "execution": execution,
                     "error": None,
@@ -349,6 +385,117 @@ class QdrantQueueTest(unittest.TestCase):
             error="RuntimeError",
         )
         wait_for_tracers.assert_called_once_with()
+
+    @patch.dict(os.environ, {"APP_NAME": "verifica-ai-test"})
+    @patch("qdrant.get_colbert_model")
+    @patch("qdrant.get_sparse_model")
+    @patch("qdrant.get_dense_model")
+    @patch("qdrant.ensure_collection")
+    @patch("qdrant.get_qdrant_client")
+    def test_qdrant_point_indexes_only_query_and_title(
+        self,
+        get_qdrant_client: Mock,
+        ensure_collection: Mock,
+        get_dense_model: Mock,
+        get_sparse_model: Mock,
+        get_colbert_model: Mock,
+    ) -> None:
+        from qdrant import save_final_answer
+
+        dense_embedding = Mock()
+        dense_embedding.tolist.return_value = [0.1, 0.2]
+        sparse_embedding = Mock()
+        sparse_embedding.as_object.return_value = {
+            "indices": [1],
+            "values": [0.3],
+        }
+        colbert_embedding = Mock()
+        colbert_embedding.tolist.return_value = [[0.4, 0.5]]
+        get_dense_model.return_value.passage_embed.return_value = iter(
+            [dense_embedding]
+        )
+        get_sparse_model.return_value.passage_embed.return_value = iter(
+            [sparse_embedding]
+        )
+        get_colbert_model.return_value.passage_embed.return_value = iter(
+            [colbert_embedding]
+        )
+        final_answer = FinalAnswerResult(
+            title="FALSO: Situação judicial de Lula",
+            answer="Resposta que não deve ser indexada.",
+            sources=[
+                {
+                    "title": "Fonte sigilosa para este teste",
+                    "url": "https://example.test/fonte",
+                }
+            ],
+        )
+
+        result = save_final_answer(
+            query=(
+                "Lula foi preso? "
+                "https://www.youtube.com/watch?v=video-id"
+            ),
+            final_answer=final_answer,
+            point_id="task-id",
+            collection_name="verifica-ai",
+        )
+
+        self.assertEqual(result, "task-id")
+        qdrant_client = get_qdrant_client.return_value
+        ensure_collection.assert_called_once_with(
+            qdrant_client,
+            "verifica-ai",
+        )
+        document_text = (
+            "Pergunta: Lula foi preso?\n\n"
+            "Título: Situação judicial de Lula"
+        )
+        get_dense_model.return_value.passage_embed.assert_called_once_with(
+            [document_text]
+        )
+        get_sparse_model.return_value.passage_embed.assert_called_once_with(
+            [document_text]
+        )
+        get_colbert_model.return_value.passage_embed.assert_called_once_with(
+            [document_text]
+        )
+        point = qdrant_client.upsert.call_args.kwargs["points"][0]
+        self.assertEqual(point.id, "task-id")
+        self.assertEqual(
+            point.payload,
+            {
+                "text": document_text,
+                "meta": "verifica-ai-test",
+                "query": (
+                    "Lula foi preso? "
+                    "https://www.youtube.com/watch?v=video-id"
+                ),
+                "title": "Situação judicial de Lula",
+                "urls": [
+                    "https://www.youtube.com/watch?v=video-id"
+                ],
+                "url_keys": ["youtube:video-id"],
+            },
+        )
+        self.assertNotIn(final_answer.answer, str(point.payload))
+        self.assertNotIn("example.test", str(point.payload))
+        qdrant_client.upsert.assert_called_once_with(
+            collection_name="verifica-ai",
+            points=[point],
+            wait=True,
+        )
+
+    def test_qdrant_document_uses_only_title_for_url_only_query(self) -> None:
+        from qdrant import build_qdrant_document_text
+
+        self.assertEqual(
+            build_qdrant_document_text(
+                "https://www.youtube.com/watch?v=video-id",
+                "Pablo Marçal demonstra descontrole",
+            ),
+            "Título: Pablo Marçal demonstra descontrole",
+        )
 
     @patch.dict(os.environ, {"QDRANT_ENABLED": "true"})
     @patch("qdrant.logger")
