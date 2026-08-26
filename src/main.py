@@ -1,5 +1,6 @@
 import logging
 import os
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ from rq.job import Job
 
 from auth import (
     TokenCreateRequest,
+    TokenCreateResponse,
     TokenListResponse,
     TokenRepository,
     TokenResponse,
@@ -252,7 +254,7 @@ async def list_tokens(
 
 @app.post(
     "/admin/tokens",
-    response_model=TokenResponse,
+    response_model=TokenCreateResponse,
     status_code=201,
     include_in_schema=show_admin_docs,
 )
@@ -260,9 +262,9 @@ async def create_token(
     payload: TokenCreateRequest,
     _auth: None = Depends(verify_admin_token),
     repo: TokenRepository = Depends(get_token_repo),
-) -> TokenResponse:
+) -> TokenCreateResponse:
 
-    token = (payload.token or uuid.uuid4().hex).strip()
+    token = (payload.token or secrets.token_urlsafe(32)).strip()
     if not token:
         raise HTTPException(status_code=422, detail="Token inválido")
 
