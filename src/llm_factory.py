@@ -10,7 +10,7 @@ def build_llm(settings: LLMSettings):
         return ChatOpenAI(
             model=settings.model,
             base_url=settings.base_url,
-            api_key=settings.api_key or "dummy_key",
+            api_key=settings.api_key,
             temperature=settings.temperature,
             timeout=settings.timeout,
         )
@@ -18,7 +18,7 @@ def build_llm(settings: LLMSettings):
     if settings.provider == "google":
         return ChatGoogleGenerativeAI(
             model=settings.model,
-            google_api_key=settings.api_key or "dummy_key",
+            google_api_key=settings.api_key,
             temperature=settings.temperature,
             timeout=settings.timeout,
         )

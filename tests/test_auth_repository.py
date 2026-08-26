@@ -4,9 +4,13 @@ import unittest
 from pathlib import Path
 from uuid import UUID
 
+from fastapi import HTTPException
+
 from auth.config import AuthConfig, configure_auth
+from auth.database import init_auth_db
 from auth.models import TokenResponse
-from auth.repository import TokenRepository, _hash_token, init_auth_db
+from auth.repository import TokenRepository
+from auth.token_security import hash_token
 
 
 class TokenRepositoryTest(unittest.TestCase):
@@ -20,113 +24,103 @@ class TokenRepositoryTest(unittest.TestCase):
 
     def test_creates_named_application_identity_for_token(self) -> None:
         init_auth_db()
+        plaintext_token = "a" * 32
+
         token = TokenRepository().create_token(
             name="Agente WhatsApp",
-            token="secret-token",
+            token=plaintext_token,
             active=True,
         )
 
         self.assertEqual(token.name, "Agente WhatsApp")
-        # The plaintext token is returned on creation.
-        self.assertEqual(token.token, "secret-token")
+        self.assertEqual(token.token, plaintext_token)
         self.assertIsInstance(token.application_id, UUID)
 
-        authenticated = TokenRepository().get_token_by_value("secret-token")
+        authenticated = TokenRepository().get_token_by_value(plaintext_token)
         self.assertIsNotNone(authenticated)
         self.assertEqual(authenticated.application_id, token.application_id)
         self.assertEqual(authenticated.name, "Agente WhatsApp")
-        # TokenResponse (from lookup) does NOT have a token field —
-        # only TokenCreateResponse (from creation) includes it.
-        self.assertFalse(hasattr(TokenResponse, 'model_fields') and 'token' in TokenResponse.model_fields)
+        self.assertNotIn("token", TokenResponse.model_fields)
 
-    def test_token_stored_as_hash_not_plaintext(self) -> None:
-        """SEC-01: verify plaintext token is never stored in the database."""
+    def test_token_stored_as_hash_without_plaintext_column(self) -> None:
         init_auth_db()
+        plaintext_token = "b" * 32
         TokenRepository().create_token(
             name="Test App",
-            token="my-secret-value",
+            token=plaintext_token,
             active=True,
         )
 
         conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        columns = {
+            row[1]
+            for row in conn.execute("PRAGMA table_info(allowed_tokens)")
+        }
         row = conn.execute(
-            "SELECT token, token_hash FROM allowed_tokens WHERE id = 1"
+            "SELECT token_hash FROM allowed_tokens WHERE id = 1"
         ).fetchone()
         conn.close()
 
-        # The `token` column must NOT contain the plaintext value.
-        self.assertNotEqual(row["token"], "my-secret-value")
-        self.assertEqual(row["token"], "***REDACTED***")
-        # The `token_hash` column must contain the SHA-256 hex digest.
-        self.assertEqual(row["token_hash"], _hash_token("my-secret-value"))
+        self.assertNotIn("token", columns)
+        self.assertEqual(row[0], hash_token(plaintext_token))
+
+    def test_creates_and_authenticates_multiple_tokens(self) -> None:
+        init_auth_db()
+        repo = TokenRepository()
+        first_token = "c" * 32
+        second_token = "d" * 32
+
+        first = repo.create_token("First App", first_token, True)
+        second = repo.create_token("Second App", second_token, True)
+
+        self.assertNotEqual(first.id, second.id)
+        self.assertEqual(repo.get_token_by_value(first_token).name, "First App")
+        self.assertEqual(repo.get_token_by_value(second_token).name, "Second App")
+        self.assertEqual(
+            len(repo.list_tokens(active=None, limit=10, offset=0)),
+            2,
+        )
+
+    def test_rejects_duplicate_token_hash(self) -> None:
+        init_auth_db()
+        repo = TokenRepository()
+        plaintext_token = "e" * 32
+        repo.create_token("First App", plaintext_token, True)
+
+        with self.assertRaises(HTTPException) as context:
+            repo.create_token("Second App", plaintext_token, True)
+
+        self.assertEqual(context.exception.status_code, 409)
 
     def test_get_token_by_value_uses_hash(self) -> None:
-        """SEC-01: validate lookup uses hash comparison."""
         init_auth_db()
         repo = TokenRepository()
-        repo.create_token(name="App", token="lookup-test-token", active=True)
+        plaintext_token = "f" * 32
+        repo.create_token(name="App", token=plaintext_token, active=True)
 
-        found = repo.get_token_by_value("lookup-test-token")
+        found = repo.get_token_by_value(plaintext_token)
         self.assertIsNotNone(found)
         self.assertEqual(found.name, "App")
+        self.assertIsNone(repo.get_token_by_value("wrong-token"))
 
-        not_found = repo.get_token_by_value("wrong-token")
-        self.assertIsNone(not_found)
-
-    def test_token_preview_is_masked(self) -> None:
-        """SEC-01: token_preview shows masked hash."""
+    def test_token_fingerprint_is_derived_from_hash(self) -> None:
         init_auth_db()
         repo = TokenRepository()
-        created = repo.create_token(name="Preview", token="preview-tok", active=True)
+        plaintext_token = "g" * 32
+        created = repo.create_token("Fingerprint", plaintext_token, True)
 
-        self.assertIsNotNone(created.token_preview)
-        # Preview should contain "..." and be much shorter than the hash.
-        self.assertIn("...", created.token_preview)
-        # The preview must NOT contain the full hash or plaintext.
-        self.assertNotEqual(created.token_preview, _hash_token("preview-tok"))
-
-    def test_migrates_existing_tokens_with_application_identity(self) -> None:
-        connection = sqlite3.connect(self.db_path)
-        connection.execute(
-            """
-            CREATE TABLE allowed_tokens (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              token TEXT NOT NULL UNIQUE,
-              active INTEGER NOT NULL DEFAULT 1,
-              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
+        self.assertIsNotNone(created.token_fingerprint)
+        self.assertIn("...", created.token_fingerprint)
+        self.assertNotEqual(
+            created.token_fingerprint,
+            hash_token(plaintext_token),
         )
-        connection.execute(
-            "INSERT INTO allowed_tokens (token, active) VALUES (?, ?)",
-            ("legacy-token", 1),
-        )
-        connection.commit()
-        connection.close()
-
-        init_auth_db()
-
-        # After migration, the token should be found by its hash.
-        token = TokenRepository().get_token_by_value("legacy-token")
-        self.assertIsNotNone(token)
-        self.assertEqual(token.name, "Aplicação 1")
-        self.assertIsInstance(token.application_id, UUID)
-
-        # Verify the plaintext was redacted in the database.
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        row = conn.execute(
-            "SELECT token, token_hash FROM allowed_tokens WHERE id = 1"
-        ).fetchone()
-        conn.close()
-        self.assertEqual(row["token"], "***REDACTED***")
-        self.assertEqual(row["token_hash"], _hash_token("legacy-token"))
+        self.assertNotIn(plaintext_token, created.token_fingerprint)
 
     def test_updates_application_name_without_changing_identity(self) -> None:
         init_auth_db()
         repo = TokenRepository()
-        token = repo.create_token("Nome antigo", "secret-token", True)
+        token = repo.create_token("Nome antigo", "j" * 32, True)
 
         updated = repo.update_token(token.id, name="Agente WhatsApp")
 

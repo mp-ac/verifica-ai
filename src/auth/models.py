@@ -7,7 +7,15 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class TokenCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    token: Optional[str] = Field(default=None, min_length=3, max_length=255)
+    token: Optional[str] = Field(
+        default=None,
+        min_length=32,
+        max_length=32,
+        description=(
+            "Token manual com exatamente 32 caracteres. "
+            "Quando omitido, um token seguro é gerado automaticamente."
+        ),
+    )
     active: bool = True
 
     @field_validator("name")
@@ -17,6 +25,16 @@ class TokenCreateRequest(BaseModel):
         if not name:
             raise ValueError("name não pode ser vazio.")
         return name
+
+    @field_validator("token")
+    @classmethod
+    def normalize_token(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        token = value.strip()
+        if len(token) != 32:
+            raise ValueError("token deve ter exatamente 32 caracteres.")
+        return token
 
 
 class TokenUpdateRequest(BaseModel):
@@ -44,9 +62,9 @@ class TokenResponse(BaseModel):
     id: int
     application_id: UUID
     name: str
-    token_preview: Optional[str] = Field(
+    token_fingerprint: Optional[str] = Field(
         default=None,
-        description="Prévia mascarada do token (primeiros e últimos 4 caracteres).",
+        description="Identificador abreviado derivado do hash do token.",
     )
     active: bool
     created_at: datetime
