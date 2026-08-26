@@ -1,69 +1,12 @@
 import sqlite3
-from pathlib import Path
 from typing import List, Optional
 from uuid import uuid4
 
 from fastapi import HTTPException
 
 from .config import get_auth_config
-from .models import TokenResponse
-
-
-def init_auth_db() -> None:
-    db_path = Path(get_auth_config().auth_db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS allowed_tokens (
-              id INTEGER PRIMARY KEY AUTOINCREMENT,
-              application_id TEXT NOT NULL UNIQUE,
-              name TEXT NOT NULL,
-              token TEXT NOT NULL UNIQUE,
-              active INTEGER NOT NULL DEFAULT 1,
-              created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-        columns = {
-            row[1]
-            for row in conn.execute("PRAGMA table_info(allowed_tokens)")
-        }
-        if "application_id" not in columns:
-            conn.execute(
-                "ALTER TABLE allowed_tokens ADD COLUMN application_id TEXT"
-            )
-        if "name" not in columns:
-            conn.execute("ALTER TABLE allowed_tokens ADD COLUMN name TEXT")
-
-        legacy_tokens = conn.execute(
-            "SELECT id, application_id, name FROM allowed_tokens"
-        ).fetchall()
-        for token_id, application_id, name in legacy_tokens:
-            conn.execute(
-                """
-                UPDATE allowed_tokens
-                SET application_id = ?, name = ?
-                WHERE id = ?
-                """,
-                (
-                    application_id or str(uuid4()),
-                    name or f"Aplicação {token_id}",
-                    token_id,
-                ),
-            )
-        conn.execute(
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS
-            allowed_tokens_application_id_unique
-            ON allowed_tokens (application_id)
-            """
-        )
-        conn.commit()
-    finally:
-        conn.close()
+from .models import TokenCreateResponse, TokenResponse
+from .token_security import hash_token, token_fingerprint
 
 
 class TokenRepository:
@@ -76,11 +19,14 @@ class TokenRepository:
         return conn
 
     def _row_to_token_response(self, row: sqlite3.Row) -> TokenResponse:
+        token_hash = row["token_hash"] or ""
         return TokenResponse(
             id=row["id"],
             application_id=row["application_id"],
             name=row["name"],
-            token=row["token"],
+            token_fingerprint=(
+                token_fingerprint(token_hash) if token_hash else None
+            ),
             active=bool(row["active"]),
             created_at=datetime_from_sqlite(row["created_at"]),
         )
@@ -95,7 +41,8 @@ class TokenRepository:
         try:
             conn = self._connect()
             query = (
-                "SELECT id, application_id, name, token, active, created_at "
+                "SELECT id, application_id, name, token_hash, "
+                "active, created_at "
                 "FROM allowed_tokens"
             )
             params: list[object] = []
@@ -117,16 +64,23 @@ class TokenRepository:
         name: str,
         token: str,
         active: bool,
-    ) -> TokenResponse:
+    ) -> TokenCreateResponse:
         conn = None
+        token_hash = hash_token(token)
         try:
             conn = self._connect()
             cursor = conn.execute(
                 """
-                INSERT INTO allowed_tokens (application_id, name, token, active)
+                INSERT INTO allowed_tokens
+                    (application_id, name, token_hash, active)
                 VALUES (?, ?, ?, ?)
                 """,
-                (str(uuid4()), name, token, 1 if active else 0),
+                (
+                    str(uuid4()),
+                    name,
+                    token_hash,
+                    1 if active else 0,
+                ),
             )
             conn.commit()
             token_id = cursor.lastrowid
@@ -137,7 +91,11 @@ class TokenRepository:
         finally:
             if conn is not None:
                 conn.close()
-        return self.get_token(token_id)
+        base = self.get_token(token_id)
+        return TokenCreateResponse(
+            **base.model_dump(),
+            token=token,
+        )
 
     def update_token(
         self,
@@ -201,7 +159,8 @@ class TokenRepository:
             conn = self._connect()
             row = conn.execute(
                 """
-                SELECT id, application_id, name, token, active, created_at
+                SELECT id, application_id, name, token_hash,
+                       active, created_at
                 FROM allowed_tokens
                 WHERE id = ?
                 """,
@@ -219,16 +178,19 @@ class TokenRepository:
                 conn.close()
 
     def get_token_by_value(self, token: str) -> Optional[TokenResponse]:
+        """Look up an active token by its SHA-256 hash."""
         conn = None
+        token_hash = hash_token(token)
         try:
             conn = self._connect()
             row = conn.execute(
                 """
-                SELECT id, application_id, name, token, active, created_at
+                SELECT id, application_id, name, token_hash,
+                       active, created_at
                 FROM allowed_tokens
-                WHERE token = ? AND active = 1
+                WHERE token_hash = ? AND active = 1
                 """,
-                (token,),
+                (token_hash,),
             ).fetchone()
             if row is None:
                 return None
@@ -241,6 +203,7 @@ class TokenRepository:
 
 
 def datetime_from_sqlite(value: str):
+    """Parse the timestamp format returned by SQLite."""
     from datetime import datetime
 
     return datetime.fromisoformat(value.replace(" ", "T"))
