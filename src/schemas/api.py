@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from graph.state import Attachment, FinalAnswerResult
+from similarity.schemas import DuplicateCheckSummary
 
 
 class RequesterInput(BaseModel):
@@ -112,5 +113,6 @@ class AcceptedAnalyzeRequestList(BaseModel):
 class AnalyzeStatusResponse(BaseModel):
     status: str
     result: AnalyzeResponse | None = None
+    duplicate_check: DuplicateCheckSummary | None = None
     execution: ExecutionMetadata | None = None
     error: str | None = None

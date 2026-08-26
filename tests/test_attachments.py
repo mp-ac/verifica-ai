@@ -4,10 +4,13 @@ from pydantic import ValidationError
 
 from schemas.api import AnalyzeRequest
 from utils.attachments import (
+    canonical_url_key,
     extract_urls,
+    extract_url_keys,
     infer_attachment_type,
     is_youtube_video_url,
     normalize_attachments,
+    strip_urls,
     validate_transcription_format,
 )
 
@@ -23,6 +26,52 @@ class AttachmentsTest(unittest.TestCase):
             "https://example.com/imagem.jpg",
             "https://example.com/video.mp4",
         ])
+
+    def test_strips_urls_from_semantic_query_text(self) -> None:
+        self.assertEqual(
+            strip_urls(
+                "Pablo fez isso? "
+                "https://www.youtube.com/watch?v=video-id"
+            ),
+            "Pablo fez isso?",
+        )
+        self.assertEqual(
+            strip_urls("https://www.youtube.com/watch?v=video-id"),
+            "",
+        )
+
+    def test_canonicalizes_supported_youtube_urls_to_the_same_key(self) -> None:
+        urls = (
+            "https://www.youtube.com/watch?v=video-id&utm_source=teste",
+            "https://youtu.be/video-id?t=30",
+            "https://www.youtube.com/shorts/video-id",
+            "https://www.youtube.com/live/video-id?feature=share",
+            "https://www.youtube-nocookie.com/embed/video-id",
+        )
+
+        for url in urls:
+            with self.subTest(url=url):
+                self.assertEqual(
+                    canonical_url_key(url),
+                    "youtube:video-id",
+                )
+
+    def test_canonicalizes_generic_url_without_tracking_or_fragment(self) -> None:
+        self.assertEqual(
+            canonical_url_key(
+                "https://Example.com/noticia/?b=2&utm_source=rede&a=1#trecho"
+            ),
+            "url:example.com/noticia?a=1&b=2",
+        )
+
+    def test_extracts_unique_url_keys(self) -> None:
+        self.assertEqual(
+            extract_url_keys(
+                "Compare https://youtu.be/video-id com "
+                "https://www.youtube.com/watch?v=video-id"
+            ),
+            ["youtube:video-id"],
+        )
 
     def test_combines_payload_and_query_attachments_without_duplicates(self) -> None:
         attachments = normalize_attachments(

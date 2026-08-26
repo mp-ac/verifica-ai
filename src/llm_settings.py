@@ -68,3 +68,14 @@ def get_youtube_settings() -> LLMSettings:
         default_temperature=0.1,
         default_timeout=300,
     )
+
+
+def get_duplicate_judge_settings() -> LLMSettings:
+    """Load duplicate-judge settings, falling back to the router model."""
+    if not os.getenv("DUPLICATE_JUDGE_MODEL", "").strip():
+        return get_router_settings()
+
+    return _load_role_settings(
+        "DUPLICATE_JUDGE",
+        default_temperature=0.0,
+    )

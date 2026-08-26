@@ -18,6 +18,8 @@ from rq import get_current_job
 
 from graph.state import FinalAnswerResult
 from queueing import qdrant_enabled
+from utils.attachments import extract_url_keys, extract_urls, strip_urls
+from utils.title_formatting import strip_classification_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +94,12 @@ def ensure_collection(
         sparse_vectors_config={
             "sparse": models.SparseVectorParams(),
         },
+    )
+    qdrant.create_payload_index(
+        collection_name=collection_name,
+        field_name="url_keys",
+        field_schema=models.PayloadSchemaType.KEYWORD,
+        wait=True,
     )
 
 
@@ -204,10 +212,10 @@ def save_final_answer(
     qdrant = get_qdrant_client()
     ensure_collection(qdrant, collection_name)
 
-    document_text = (
-        f"Pergunta: {query}\n\n"
-        f"Resposta: {final_answer.answer}"
-    )
+    title = strip_classification_prefix(final_answer.title)
+    document_text = build_qdrant_document_text(query, title)
+    urls = extract_urls(query)
+    url_keys = extract_url_keys(query)
 
     dense_embedding = next(get_dense_model().passage_embed([document_text]))
     sparse_embedding = next(get_sparse_model().passage_embed([document_text]))
@@ -222,13 +230,12 @@ def save_final_answer(
             "colbert": colbert_embedding.tolist(),
         },
         payload={
-            "text": f"{document_text}",
+            "text": document_text,
             "meta": os.getenv("APP_NAME", "verifica-ai"),
             "query": query,
-            "answer": final_answer.answer,
-            "sources": [
-                source.model_dump() for source in final_answer.sources
-            ],
+            "title": title,
+            "urls": urls,
+            "url_keys": url_keys,
         },
     )
 
@@ -239,3 +246,16 @@ def save_final_answer(
     )
 
     return point_id
+
+
+def build_qdrant_document_text(query: str, title: str) -> str:
+    """Build semantic text without embedding URLs from the original query."""
+    document_parts = []
+    semantic_query = strip_urls(query)
+    if semantic_query:
+        document_parts.append(f"Pergunta: {semantic_query}")
+    if title:
+        document_parts.append(f"Título: {title}")
+    if not document_parts:
+        document_parts.append(f"Pergunta: {query}")
+    return "\n\n".join(document_parts)

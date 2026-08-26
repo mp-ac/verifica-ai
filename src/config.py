@@ -26,6 +26,10 @@ REANALYSIS_SYNTHESIS_PROMPT = os.getenv(
     "REANALYSIS_SYNTHESIS_PROMPT",
     "prompts/reanalysis_synthesis_prompt.md",
 )
+DUPLICATE_ANALYSIS_JUDGE_PROMPT = os.getenv(
+    "DUPLICATE_ANALYSIS_JUDGE_PROMPT",
+    "prompts/duplicate_analysis_judge_prompt.md",
+)
 
 TRANSCRIPTION_REQUEST_URL = os.getenv("TRANSCRIPTION_REQUEST_URL")
 TRANSCRIPTION_STATUS_URL = os.getenv("TRANSCRIPTION_STATUS_URL")

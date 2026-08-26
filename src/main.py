@@ -193,6 +193,7 @@ async def get_status(task_id: str) -> AnalyzeStatusResponse:
                 attachments=result.get("attachments", []),
                 final_answer=result.get("final_answer"),
             ),
+            duplicate_check=result.get("duplicate_check"),
             execution=result.get("execution"),
         )
     if job.is_failed:
