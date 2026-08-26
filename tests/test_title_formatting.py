@@ -1,9 +1,18 @@
 import unittest
 
-from utils.title_formatting import format_classified_title
+from utils.title_formatting import (
+    format_classified_title,
+    strip_classification_prefix,
+)
 
 
 class TitleFormattingTest(unittest.TestCase):
+    def test_strips_structured_verdict_prefix(self) -> None:
+        self.assertEqual(
+            strip_classification_prefix("FALSO: Alegação analisada"),
+            "Alegação analisada",
+        )
+
     def test_adds_prefix_for_each_classification(self) -> None:
         expected_prefixes = {
             "verdadeiro": "VERDADEIRO",

@@ -38,14 +38,14 @@ O fluxo atual é:
 4. imagens, áudios e vídeos são processados em paralelo e convertidos em contexto textual;
 5. o agente de busca usa ferramentas externas para apuração;
 6. o router sintetiza a resposta final;
-7. se o Qdrant estiver habilitado, a persistência da pergunta e da resposta final
+7. se o Qdrant estiver habilitado, a persistência da pergunta e do título final
    é enviada para uma fila dedicada;
 8. o worker do Qdrant gera os embeddings e armazena um único point na collection.
 
 O point salvo no Qdrant usa o ID do job RQ como identificador e contém:
 
 - os vetores nomeados `dense`, `sparse` e `colbert`;
-- o payload `text`, `meta`, `query`, `answer` e `sources`.
+- o payload `text`, `meta`, `query`, `title`, `urls` e `url_keys`.
 
 O uso do ID do job evita a criação de pontos duplicados caso uma mesma execução
 seja repetida.
@@ -89,6 +89,8 @@ Principais grupos de configuração:
 - `IMAGE_*`: configuração opcional da LLM multimodal; sem `IMAGE_MODEL`, reutiliza `SEARCH_*`.
 - `YOUTUBE_*`: configuração opcional do Gemini para vídeos públicos; sem
   `YOUTUBE_MODEL`, reutiliza `IMAGE_*`.
+- `DUPLICATE_JUDGE_*`: configuração opcional do avaliador de candidatos
+  semânticos; sem `DUPLICATE_JUDGE_MODEL`, reutiliza `ROUTER_*`.
 - `ATTACHMENTS_MAX_ITEMS`: quantidade máxima de conteúdos aceitos em uma análise.
 - `ANALYZE_REQUESTS_DB_PATH`: banco SQLite dos registros de solicitações aceitas.
 - `RQ_RETRY_INTERVALS_SECONDS`: intervalos, em segundos, entre novas tentativas
@@ -100,6 +102,9 @@ Principais grupos de configuração:
   privadas para um bucket do Google Cloud Storage.
 - `FINAL_RESULTS_*`: fila e API de destino das respostas finais.
 - `QDRANT_*`: conexão, collection e modelos usados na persistência vetorial opcional.
+- `SEMANTIC_RETRIEVER_*`: consulta opcional de análises anteriores, usando um
+  token do Qdrant no header `api-key`; sem collection dedicada, reutiliza
+  `QDRANT_COLLECTION_NAME`.
 - `LANGSMITH_*`: tracing opcional dos workflows executados pelos workers.
 - `*_PROMPT`: caminhos dos prompts usados pelo workflow.
 
@@ -108,7 +113,8 @@ exemplo, `30,60,120,300,600` permite cinco retries, preservando o mesmo
 `task_id`. Enquanto aguarda o próximo intervalo, o endpoint de status apresenta
 o job como `queued`.
 
-Para `ROUTER_*`, `SEARCH_*`, `IMAGE_*` e `YOUTUBE_*`, o contrato é sempre o mesmo:
+Para `ROUTER_*`, `SEARCH_*`, `IMAGE_*`, `YOUTUBE_*` e `DUPLICATE_JUDGE_*`, o
+contrato é sempre o mesmo:
 
 - `*_PROVIDER`: `google`, `openai` ou `vllm`
 - `*_MODEL`: nome do modelo
@@ -120,6 +126,24 @@ em `IMAGE_MODEL` precisa aceitar imagens como entrada.
 
 O agente do YouTube requer provider `google`. Quando `YOUTUBE_MODEL` não for
 informado, ele reutiliza o modelo multimodal configurado em `IMAGE_*`.
+
+O avaliador de duplicidade compara a consulta com até três candidatos
+semânticos e produz uma decisão estruturada. Ele é executado pelo worker apenas
+em modo consultivo e não interrompe a execução dos agentes.
+
+O worker executa a verificação de duplicidade em modo consultivo antes do workflow.
+A recuperação diferencia URL exata de candidatos semânticos, ignora
+solicitações com anexos explícitos e segue com o fluxo normal quando o endpoint
+ou o avaliador ficam indisponíveis. O `POST /analyze` continua respondendo apenas
+com a aceitação do job. Ao término, `/status/{task_id}` e a entrega ao painel
+incluem um resumo seguro em `duplicate_check`, sem textos recuperados ou o motivo
+produzido pelo avaliador.
+
+No LangSmith, o trace `duplicate_check` registra apenas metadata segura: outcome,
+quantidade de candidatos, IDs, tipos, ranks, scores, decisão e confiança. A
+consulta, os textos dos candidatos, o motivo do avaliador e as credenciais não
+são incluídos nessa metadata. Mantenha `LANGSMITH_HIDE_INPUTS=true` para ocultar
+também as entradas capturadas automaticamente pela chamada ao modelo.
 
 ### LangSmith
 
@@ -207,6 +231,17 @@ YOUTUBE_MODEL=gemini-2.5-flash
 YOUTUBE_API_KEY=sua_chave_google
 YOUTUBE_BASE_URL=
 YOUTUBE_TIMEOUT=300
+```
+
+Configuração opcional dedicada ao avaliador de duplicidade:
+
+```env
+DUPLICATE_JUDGE_PROVIDER=vllm
+DUPLICATE_JUDGE_MODEL=Qwen/Qwen3-8B-FP8
+DUPLICATE_JUDGE_API_KEY=sua_chave_vllm
+DUPLICATE_JUDGE_BASE_URL=https://seu-endpoint/v1
+DUPLICATE_JUDGE_TEMPERATURE=0.0
+DUPLICATE_JUDGE_TIMEOUT=120
 ```
 
 ### Conteúdos recebidos
@@ -414,11 +449,18 @@ QDRANT_API_PORT=443
 QDRANT_TIMEOUT_SECONDS=60
 ```
 
-Cada resposta final é persistida como um único point. A pergunta e a resposta
-são usadas para gerar os embeddings dense, sparse e ColBERT, enquanto as fontes
-e os demais dados permanecem disponíveis no payload. `QDRANT_TIMEOUT_SECONDS`
-limita cada operação de rede do cliente, enquanto `QDRANT_JOB_TIMEOUT_SECONDS`
-limita o job completo, incluindo carregamento dos modelos e geração dos embeddings.
+Cada análise final é persistida como um único point. A pergunta e o título são
+usados para gerar os embeddings dense, sparse e ColBERT. O payload mantém apenas
+o texto indexado, a identificação da aplicação, a pergunta e o título; resposta,
+fontes e classificação permanecem fora do Qdrant. O prefixo de classificação do
+título também é removido para não interferir na similaridade. A formatação exibida
+no painel não é alterada. URLs também ficam fora dos embeddings: são preservadas
+em `urls` e normalizadas em `url_keys` para futuras correspondências exatas. URLs
+equivalentes de `watch`, `youtu.be`, `shorts`, `live` e `embed` compartilham a chave
+`youtube:{video_id}`. A collection cria um índice `keyword` para `url_keys`.
+`QDRANT_TIMEOUT_SECONDS` limita cada operação de rede do cliente, enquanto
+`QDRANT_JOB_TIMEOUT_SECONDS` limita o job completo, incluindo o carregamento dos
+modelos e a geração dos embeddings.
 
 O serviço `verificaai-qdrant-worker` usa a mesma imagem da API e deve ser executado
 somente nos deployments em que `QDRANT_ENABLED=true`.
@@ -462,6 +504,12 @@ o `task_id` da execução:
       "is_classified": true
     }
   },
+  "duplicate_check": {
+    "outcome": "match",
+    "candidate_task_id": "uuid-da-analise-anterior",
+    "match_type": "semantic",
+    "confidence": "high"
+  },
   "execution": {
     "models": [
       {
@@ -486,6 +534,12 @@ o `task_id` da execução:
   "error": null
 }
 ```
+
+`duplicate_check.outcome` pode ser `match`, `exact_match`, `no_match`,
+`uncertain`, `skipped` ou `unavailable`. Somente correspondências confirmadas
+expõem `candidate_task_id` e `match_type`; a confiança é informada para a
+correspondência semântica. O workflow dos agentes continua sendo executado em
+todos os casos.
 
 `duration_ms` mede somente a execução do workflow dos agentes. O tempo de
 enfileiramento, entrega HTTP, geração de embeddings e persistência no Qdrant não
