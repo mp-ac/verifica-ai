@@ -40,6 +40,10 @@ from queueing import (
 )
 from reanalysis import router as reanalysis_router
 from jobs import process_analyze_job
+from jobs.failed_analysis_delivery import (
+    deliver_failed_analysis,
+    deliver_stopped_analysis,
+)
 from schemas import (
     AcceptedAnalyzeRequestList,
     AnalyzeEnqueueResponse,
@@ -145,6 +149,8 @@ async def analyze(
                 if analyze_retry_intervals
                 else None
             ),
+            on_failure=deliver_failed_analysis,
+            on_stopped=deliver_stopped_analysis,
         )
         task_id = resolve_job_id(job)
         if not task_id:

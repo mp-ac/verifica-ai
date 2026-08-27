@@ -79,6 +79,7 @@ def _process_analyze_job(
     )
     workflow_query = (query or "").strip() or "Conteúdo enviado para análise"
     final_answer = None
+    human_response_required = False
     executed_agents = set()
     executed_tools = set()
     usage_by_role = {
@@ -131,6 +132,8 @@ def _process_analyze_job(
             answer = data.get("final_answer")
             if answer is not None:
                 final_answer = answer
+            if data.get("human_response_required"):
+                human_response_required = True
 
     final_answer_data = (
         final_answer.model_dump() if final_answer is not None else None
@@ -160,6 +163,7 @@ def _process_analyze_job(
             query=workflow_query,
             final_answer=final_answer,
             completed_result=completed_result,
+            persist_to_qdrant=not human_response_required,
         )
 
     return {

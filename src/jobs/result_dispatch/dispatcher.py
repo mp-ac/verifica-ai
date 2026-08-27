@@ -10,6 +10,7 @@ def dispatch_completed_result(
     query: str,
     final_answer: FinalAnswerResult,
     completed_result: dict,
+    persist_to_qdrant: bool = True,
 ) -> None:
     """Enqueue the completed analysis for its external destinations."""
     job = get_current_job()
@@ -21,8 +22,9 @@ def dispatch_completed_result(
             completed_result=completed_result,
         )
 
-    enqueue_qdrant_result(
-        task_id=task_id,
-        query=query,
-        final_answer=final_answer,
-    )
+    if persist_to_qdrant:
+        enqueue_qdrant_result(
+            task_id=task_id,
+            query=query,
+            final_answer=final_answer,
+        )

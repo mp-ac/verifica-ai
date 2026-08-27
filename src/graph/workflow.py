@@ -6,6 +6,7 @@ from agents.image_agent import query_image
 from agents.youtube_agent import query_youtube
 from graph.nodes import (
     classify_query,
+    prepare_human_response,
     prepare_search_query,
     route_after_prepare_search,
     route_to_agents,
@@ -17,6 +18,7 @@ from graph.state import RouterState
 workflow = (
     StateGraph(RouterState)
     .add_node("classify", classify_query)
+    .add_node("human_response", prepare_human_response)
     .add_node("search_agent", query_search)
     .add_node("transcription_agent", query_transcription)
     .add_node("image_agent", query_image)
@@ -26,7 +28,9 @@ workflow = (
     .add_edge(START, "classify")
     .add_conditional_edges("classify", route_to_agents, [
         "search_agent", "transcription_agent", "image_agent", "youtube_agent",
+        "human_response",
     ])
+    .add_edge("human_response", END)
     .add_edge("transcription_agent", "prepare_search")
     .add_edge("image_agent", "prepare_search")
     .add_edge("youtube_agent", "prepare_search")

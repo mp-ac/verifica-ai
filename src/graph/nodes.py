@@ -136,8 +136,11 @@ def classify_query(state: RouterState) -> dict:
     }
 
 
-def route_to_agents(state: RouterState) -> list[Send]:
+def route_to_agents(state: RouterState) -> str | list[Send]:
     """Fan out to agents based on classifications."""
+    if not state["classifications"]:
+        return "human_response"
+
     sends = []
     for classification in state["classifications"]:
         agent_input = {"query": classification["query"]}
@@ -146,6 +149,25 @@ def route_to_agents(state: RouterState) -> list[Send]:
         sends.append(Send(classification["source"], agent_input))
 
     return sends
+
+
+def prepare_human_response(_state: RouterState) -> dict:
+    """Preserve a non-verifiable message for a human response in the panel."""
+    return {
+        "final_answer": FinalAnswerResult(
+            title="Resposta humana necessária",
+            answer=(
+                "A mensagem não contém uma alegação factual para pesquisa "
+                "automática e requer avaliação e resposta humana."
+            ),
+            sources=[],
+            classification=None,
+        ),
+        "human_response_required": True,
+        "debug_events": [
+            "Router encaminhou a mensagem sem alegação factual para resposta humana."
+        ],
+    }
 
 
 def prepare_search_query(state: RouterState) -> dict:
