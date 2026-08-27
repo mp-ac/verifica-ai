@@ -132,6 +132,7 @@ class RouterState(TypedDict):
     tools: Annotated[list[str], operator.add]
     model_usage: Annotated[list[ModelUsage], operator.add]
     debug_events: Annotated[list[str], operator.add]
+    human_response_required: NotRequired[bool]
     final_answer: FinalAnswerResult
 
 

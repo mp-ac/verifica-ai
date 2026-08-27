@@ -48,6 +48,14 @@ class AnalyzeRetryApiTest(unittest.IsolatedAsyncioTestCase):
         retry = queue.enqueue.call_args.kwargs["retry"]
         self.assertEqual(retry.max, 3)
         self.assertEqual(retry.intervals, [30, 60, 120])
+        self.assertEqual(
+            queue.enqueue.call_args.kwargs["on_failure"].__name__,
+            "deliver_failed_analysis",
+        )
+        self.assertEqual(
+            queue.enqueue.call_args.kwargs["on_stopped"].__name__,
+            "deliver_stopped_analysis",
+        )
 
     @patch("main.record_accepted_analyze_request")
     @patch("main.retry_intervals", return_value=[])
