@@ -1,6 +1,6 @@
 [project]
 name = "verifica-ai"
-version = "1.5.0"
+version = "1.5.2"
 description = "Plataforma para apoio ao combate à desinformação"
 readme = "README.md"
 requires-python = ">=3.13"
