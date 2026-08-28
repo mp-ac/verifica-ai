@@ -108,6 +108,12 @@ class QdrantQueueTest(unittest.TestCase):
             result = process_analyze_job("Consulta")
 
         self.assertEqual(result["status"], "done")
+        run_duplicate_check.assert_called_once_with(
+            "Título da resposta",
+            [],
+            task_id="task-id",
+            retry_attempt=0,
+        )
         trace_config = stream.call_args.kwargs["config"]
         self.assertEqual(trace_config["run_name"], "analyze_workflow")
         self.assertEqual(trace_config["tags"], ["flow:analyze"])

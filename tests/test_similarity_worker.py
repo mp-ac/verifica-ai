@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
+from graph.state import FinalAnswerResult
 from similarity.schemas import (
     DuplicateAnalysisDecision,
     DuplicateCheckResult,
@@ -129,7 +130,7 @@ class SimilarityWorkerTest(unittest.TestCase):
 
     @patch("jobs.analyze.run_duplicate_check")
     @patch("jobs.analyze.workflow.stream", return_value=[])
-    def test_worker_runs_advisory_check_and_continues_workflow(
+    def test_worker_runs_advisory_check_after_workflow_with_final_title(
         self,
         workflow_stream: Mock,
         run_duplicate_check: Mock,
@@ -154,15 +155,24 @@ class SimilarityWorkerTest(unittest.TestCase):
             ),
         )
 
+        workflow_stream.return_value = [{
+            "router": {
+                "final_answer": FinalAnswerResult(
+                    title="FALSO: Consulta processada do áudio",
+                    answer="Resposta final",
+                ),
+            },
+        }]
+
         result = _process_analyze_job(
-            "Consulta genérica",
-            [],
+            None,
+            [{"type": "audio", "url": "https://example.test/audio.ogg"}],
             task_id="task-id",
             retry_attempt=0,
         )
 
         run_duplicate_check.assert_called_once_with(
-            "Consulta genérica",
+            "Consulta processada do áudio",
             [],
             task_id="task-id",
             retry_attempt=0,
@@ -175,6 +185,35 @@ class SimilarityWorkerTest(unittest.TestCase):
             "match_type": "semantic",
             "confidence": "high",
         })
+
+    @patch("jobs.analyze.run_duplicate_check")
+    @patch("jobs.analyze.workflow.stream", return_value=[])
+    def test_worker_skips_duplicate_query_without_final_answer(
+        self,
+        workflow_stream: Mock,
+        run_duplicate_check: Mock,
+    ) -> None:
+        from jobs.analyze import _process_analyze_job
+
+        run_duplicate_check.return_value = DuplicateCheckResult(
+            outcome="skipped"
+        )
+
+        result = _process_analyze_job(
+            "Consulta sem resultado",
+            [],
+            task_id="task-id",
+            retry_attempt=0,
+        )
+
+        workflow_stream.assert_called_once()
+        run_duplicate_check.assert_called_once_with(
+            None,
+            [],
+            task_id="task-id",
+            retry_attempt=0,
+        )
+        self.assertEqual(result["duplicate_check"]["outcome"], "skipped")
 
 
 if __name__ == "__main__":
