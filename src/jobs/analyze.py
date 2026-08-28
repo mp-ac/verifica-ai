@@ -7,6 +7,7 @@ from rq import get_current_job
 
 from config import ATTACHMENTS_MAX_ITEMS
 from graph.workflow import workflow
+from image_authenticity import serialize_image_authenticity_analyses
 from jobs.execution_metadata import build_execution_metadata
 from jobs.result_dispatch import dispatch_completed_result
 from observability.langsmith import sanitized_langsmith_tracing
@@ -74,6 +75,7 @@ def _process_analyze_job(
     workflow_query = (query or "").strip() or "Conteúdo enviado para análise"
     final_answer = None
     human_response_required = False
+    image_authenticity_analyses = []
     executed_agents = set()
     executed_tools = set()
     usage_by_role = {
@@ -112,9 +114,14 @@ def _process_analyze_job(
                 "search_agent",
                 "transcription_agent",
                 "image_agent",
+                "image_authenticity_agent",
                 "youtube_agent",
             }:
                 executed_agents.add(step)
+
+            image_authenticity_analyses.extend(
+                data.get("image_authenticity_analyses", [])
+            )
 
             executed_tools.update(data.get("tools", []))
 
@@ -131,6 +138,9 @@ def _process_analyze_job(
 
     final_answer_data = (
         final_answer.model_dump() if final_answer is not None else None
+    )
+    image_authenticity_data = serialize_image_authenticity_analyses(
+        image_authenticity_analyses
     )
     duplicate_check = run_duplicate_check(
         build_duplicate_check_query(final_answer),
@@ -151,6 +161,7 @@ def _process_analyze_job(
             "query": workflow_query,
             "attachments": normalized_attachments,
             "final_answer": final_answer_data,
+            "image_authenticity_analyses": image_authenticity_data,
         },
         "duplicate_check": duplicate_check_data,
         "execution": execution,
@@ -172,6 +183,7 @@ def _process_analyze_job(
         "query": workflow_query,
         "attachments": normalized_attachments,
         "final_answer": final_answer_data,
+        "image_authenticity_analyses": image_authenticity_data,
         "duplicate_check": duplicate_check_data,
         "execution": execution,
     }

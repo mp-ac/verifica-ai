@@ -4,9 +4,38 @@ from unittest.mock import Mock, patch
 from langchain_core.messages import AIMessage
 
 from graph.state import FinalAnswerResult, ImageAnalysisResult, SourceItem
+from image_authenticity import ImageAuthenticityModelResult
 
 
 class AttachmentWorkflowTest(unittest.TestCase):
+    def test_routes_each_image_to_content_and_authenticity_agents(self) -> None:
+        from graph.nodes import classify_query, route_to_agents
+
+        classification = classify_query({
+            "query": "Verifique as imagens",
+            "attachments": [
+                {
+                    "type": "image",
+                    "url": "https://example.com/primeira.jpg",
+                },
+                {
+                    "type": "image",
+                    "url": "https://example.com/segunda.jpg",
+                },
+            ],
+        })
+        sends = route_to_agents(classification)
+
+        self.assertEqual(
+            [(send.node, send.arg["attachment_index"]) for send in sends],
+            [
+                ("image_agent", 0),
+                ("image_authenticity_agent", 0),
+                ("image_agent", 1),
+                ("image_authenticity_agent", 1),
+            ],
+        )
+
     @patch("graph.nodes.load_prompt", return_value="Sintetize {query}")
     @patch("graph.nodes.router_llm")
     def test_grounded_sources_replace_router_generated_sources(
@@ -131,12 +160,19 @@ class AttachmentWorkflowTest(unittest.TestCase):
     @patch("agents.search_agent.agent.search_agent")
     @patch("agents.search_agent.agent.SEARCH_GOOGLE_SEARCH_ENABLED", False)
     @patch("agents.transcription_agent.transcription_agent")
+    @patch(
+        "agents.image_authenticity_agent.load_prompt",
+        return_value="Prompt de autenticidade",
+    )
+    @patch("agents.image_authenticity_agent.image_llm")
     @patch("agents.image_agent.load_prompt", return_value="Prompt visual")
     @patch("agents.image_agent.image_llm")
     def test_processes_multiple_media_before_one_search(
         self,
         image_llm: Mock,
         image_load_prompt: Mock,
+        authenticity_llm: Mock,
+        authenticity_load_prompt: Mock,
         transcription_agent: Mock,
         search_agent: Mock,
         router_llm: Mock,
@@ -155,6 +191,20 @@ class AttachmentWorkflowTest(unittest.TestCase):
                 "input_tokens": 100,
                 "output_tokens": 20,
                 "total_tokens": 120,
+            }),
+            "parsing_error": None,
+        }
+        authenticity_llm.with_structured_output.return_value.invoke.return_value = {
+            "parsed": ImageAuthenticityModelResult(
+                assessment="likely_ai_generated",
+                confidence=0.75,
+                signals=["Iluminação visual inconsistente."],
+                limitations=["Imagem recomprimida."],
+            ),
+            "raw": AIMessage(content="", usage_metadata={
+                "input_tokens": 80,
+                "output_tokens": 20,
+                "total_tokens": 100,
             }),
             "parsing_error": None,
         }
@@ -202,6 +252,11 @@ class AttachmentWorkflowTest(unittest.TestCase):
         })
 
         self.assertEqual(len(state["media_contexts"]), 3)
+        self.assertEqual(len(state["image_authenticity_analyses"]), 1)
+        self.assertEqual(
+            state["image_authenticity_analyses"][0].attachment_index,
+            0,
+        )
         self.assertEqual(transcription_agent.invoke.call_count, 2)
         search_agent.invoke.assert_called_once()
         research_query = (
@@ -220,8 +275,9 @@ class AttachmentWorkflowTest(unittest.TestCase):
             state["final_answer"].title,
             "INCONCLUSIVO: Conteúdos enviados e resultados da pesquisa",
         )
-        self.assertEqual(len(state["model_usage"]), 5)
+        self.assertEqual(len(state["model_usage"]), 6)
         image_load_prompt.assert_called_once()
+        authenticity_load_prompt.assert_called_once()
         router_load_prompt.assert_called_once()
 
 

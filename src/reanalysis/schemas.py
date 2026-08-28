@@ -17,6 +17,7 @@ from graph.state import (
     FinalAnswerResult,
     SourceItem,
 )
+from image_authenticity import ImageAuthenticityAnalysis
 from schemas.api import ExecutionMetadata
 
 
@@ -77,6 +78,9 @@ class ReanalysisResponse(BaseModel):
     final_result_id: UUID
     prompt: str
     final_answer: FinalAnswerResult
+    image_authenticity_analyses: list[ImageAuthenticityAnalysis] = Field(
+        default_factory=list
+    )
 
 
 class ReanalysisStatusResponse(BaseModel):

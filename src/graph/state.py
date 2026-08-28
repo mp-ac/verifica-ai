@@ -3,6 +3,8 @@ from typing import Annotated, Literal, NotRequired, TypedDict
 
 from pydantic import AnyHttpUrl, BaseModel, Field, model_validator
 
+from image_authenticity import ImageAuthenticityAnalysis
+
 
 AttachmentType = Literal[
     "image",
@@ -34,6 +36,7 @@ class AgentInput(TypedDict):
     query: str
     research_query: NotRequired[str]
     attachment: NotRequired[dict]
+    attachment_index: NotRequired[int]
 
 
 class AgentOutput(TypedDict):
@@ -58,10 +61,12 @@ class Classification(TypedDict):
         "search_agent",
         "transcription_agent",
         "image_agent",
+        "image_authenticity_agent",
         "youtube_agent",
     ]
     query: str
     attachment: NotRequired[dict]
+    attachment_index: NotRequired[int]
 
 
 class ImageAnalysisResult(BaseModel):
@@ -123,6 +128,10 @@ class RouterState(TypedDict):
     attachments: list[dict]
     classifications: list[Classification]
     media_contexts: Annotated[list[AgentOutput], operator.add]
+    image_authenticity_analyses: Annotated[
+        list[ImageAuthenticityAnalysis],
+        operator.add,
+    ]
     youtube_central_claim: NotRequired[str]
     youtube_research_context: NotRequired[str]
     youtube_requires_clarification: NotRequired[bool]

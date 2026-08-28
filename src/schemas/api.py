@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, model_validator
 
 from graph.state import Attachment, FinalAnswerResult
+from image_authenticity import ImageAuthenticityAnalysis
 from similarity.schemas import DuplicateCheckSummary
 
 
@@ -74,6 +75,7 @@ class ExecutionMetadata(BaseModel):
             "search_agent",
             "transcription_agent",
             "image_agent",
+            "image_authenticity_agent",
             "youtube_agent",
         ]
     ] = Field(
@@ -89,6 +91,9 @@ class AnalyzeResponse(BaseModel):
     query: str
     attachments: list[Attachment] = Field(default_factory=list)
     final_answer: FinalAnswerResult | None = None
+    image_authenticity_analyses: list[ImageAuthenticityAnalysis] = Field(
+        default_factory=list
+    )
 
 
 class AnalyzeEnqueueResponse(BaseModel):

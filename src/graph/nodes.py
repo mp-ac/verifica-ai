@@ -71,15 +71,23 @@ def _format_input_for_search(
 def classify_query(state: RouterState) -> dict:
     """Classify query and determine which agents to invoke."""
     attachments = state.get("attachments", [])
-    media_classifications = [
-        {
+    media_classifications = []
+    for attachment_index, attachment in enumerate(attachments):
+        if attachment.get("type") not in MEDIA_AGENT_BY_TYPE:
+            continue
+
+        classification = {
             "source": MEDIA_AGENT_BY_TYPE[attachment["type"]],
             "query": state["query"],
             "attachment": attachment,
+            "attachment_index": attachment_index,
         }
-        for attachment in attachments
-        if attachment.get("type") in MEDIA_AGENT_BY_TYPE
-    ]
+        media_classifications.append(classification)
+        if attachment.get("type") == "image":
+            media_classifications.append({
+                **classification,
+                "source": "image_authenticity_agent",
+            })
 
     if media_classifications:
         return {
@@ -146,6 +154,10 @@ def route_to_agents(state: RouterState) -> str | list[Send]:
         agent_input = {"query": classification["query"]}
         if "attachment" in classification:
             agent_input["attachment"] = classification["attachment"]
+        if "attachment_index" in classification:
+            agent_input["attachment_index"] = classification[
+                "attachment_index"
+            ]
         sends.append(Send(classification["source"], agent_input))
 
     return sends

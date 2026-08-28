@@ -17,6 +17,10 @@ IMAGE_AGENT_PROMPT = os.getenv(
     "IMAGE_AGENT_PROMPT",
     "prompts/image_agent_prompt.md",
 )
+IMAGE_AUTHENTICITY_PROMPT = os.getenv(
+    "IMAGE_AUTHENTICITY_PROMPT",
+    "prompts/image_authenticity_prompt.md",
+)
 YOUTUBE_AGENT_PROMPT = os.getenv(
     "YOUTUBE_AGENT_PROMPT",
     "prompts/youtube_agent_prompt.md",

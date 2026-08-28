@@ -30,7 +30,7 @@ def build_execution_metadata(
         },
     ]
 
-    if "image_agent" in executed_agents:
+    if {"image_agent", "image_authenticity_agent"} & executed_agents:
         image_settings = get_image_settings()
         execution_models.append(
             {

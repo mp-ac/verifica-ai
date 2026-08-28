@@ -6,6 +6,7 @@ from langchain_core.tracers.langchain import wait_for_all_tracers
 from rq import get_current_job
 
 from jobs.execution_metadata import build_execution_metadata
+from image_authenticity import serialize_image_authenticity_analyses
 from observability.langsmith import sanitized_langsmith_tracing
 from reanalysis.graph.workflow import reanalysis_workflow
 from reanalysis.schemas import PanelFinalResult
@@ -50,6 +51,7 @@ def _process_reanalyze_job(
     started_at = perf_counter()
     original = PanelFinalResult.model_validate(final_result_data)
     final_answer = None
+    image_authenticity_analyses = []
     executed_agents = set()
     executed_tools = set()
     usage_by_role = {
@@ -80,9 +82,14 @@ def _process_reanalyze_job(
                 "search_agent",
                 "transcription_agent",
                 "image_agent",
+                "image_authenticity_agent",
                 "youtube_agent",
             }:
                 executed_agents.add(step)
+
+            image_authenticity_analyses.extend(
+                data.get("image_authenticity_analyses", [])
+            )
 
             executed_tools.update(data.get("tools", []))
             for model_usage in data.get("model_usage", []):
@@ -103,6 +110,9 @@ def _process_reanalyze_job(
         executed_agents=executed_agents,
         executed_tools=executed_tools,
     )
+    image_authenticity_data = serialize_image_authenticity_analyses(
+        image_authenticity_analyses
+    )
     return {
         "status": "done",
         "result": {
@@ -110,6 +120,7 @@ def _process_reanalyze_job(
             "final_result_id": str(original.id),
             "prompt": prompt,
             "final_answer": final_answer.model_dump(mode="json"),
+            "image_authenticity_analyses": image_authenticity_data,
         },
         "execution": execution,
         "error": None,

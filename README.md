@@ -15,6 +15,7 @@ O que existe hoje:
 - roteamento entre agentes por tipo de entrada;
 - agente de busca com ferramentas de data atual, descoberta de links e leitura de páginas;
 - análise de imagens por modelo multimodal antes da pesquisa online;
+- avaliação probabilística de sinais visuais de geração por IA em cada imagem;
 - transcrição de áudio por API externa;
 - suporte a múltiplos anexos e a links encontrados na consulta;
 - síntese final estruturada da resposta;
@@ -35,7 +36,7 @@ O fluxo atual é:
 1. o usuário digita uma consulta no terminal;
 2. o router classifica a entrada;
 3. o workflow decide quais agentes executar;
-4. imagens, áudios e vídeos são processados em paralelo e convertidos em contexto textual;
+4. imagens, áudios e vídeos são processados em paralelo e convertidos em contexto textual; imagens também recebem uma avaliação probabilística de autenticidade;
 5. o agente de busca usa ferramentas externas para apuração;
 6. o router sintetiza a resposta final;
 7. se o Qdrant estiver habilitado, a persistência da pergunta e do título final
@@ -54,6 +55,7 @@ Hoje os agentes disponíveis são:
 
 - `search_agent`: faz busca e leitura de fontes;
 - `image_agent`: interpreta uma imagem pública e encaminha suas alegações ao agente de busca;
+- `image_authenticity_agent`: avalia sinais visuais de geração por IA sem definir a classificação factual;
 - `transcription_agent`: envia URLs públicas de áudio ou vídeo para transcrição e encaminha os textos ao agente de busca.
 
 ## Requisitos
@@ -123,6 +125,11 @@ contrato é sempre o mesmo:
 
 `router`, `search` e `image` podem usar providers diferentes. O modelo configurado
 em `IMAGE_MODEL` precisa aceitar imagens como entrada.
+
+O agente de autenticidade reutiliza `IMAGE_MODEL` e o prompt configurado em
+`IMAGE_AUTHENTICITY_PROMPT`. A avaliação considera apenas sinais visuais, é
+probabilística e segue em modo fail-open: uma indisponibilidade produz
+`status: unavailable` e não interrompe a verificação factual.
 
 O agente do YouTube requer provider `google`. Quando `YOUTUBE_MODEL` não for
 informado, ele reutiliza o modelo multimodal configurado em `IMAGE_*`.
@@ -502,7 +509,18 @@ o `task_id` da execução:
       "sources": [],
       "classification": "inconclusivo",
       "is_classified": true
-    }
+    },
+    "image_authenticity_analyses": [
+      {
+        "attachment_index": 0,
+        "status": "completed",
+        "method": "visual_model",
+        "assessment": "likely_ai_generated",
+        "confidence": 0.82,
+        "signals": ["Padrões visuais incompatíveis entre regiões da imagem."],
+        "limitations": ["A imagem pode ter sido recomprimida."]
+      }
+    ]
   },
   "duplicate_check": {
     "outcome": "match",

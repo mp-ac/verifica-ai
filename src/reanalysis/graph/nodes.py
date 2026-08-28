@@ -98,17 +98,27 @@ def format_reanalysis_research_query(state: ReanalysisState) -> str:
 
 
 def route_reanalysis(state: ReanalysisState) -> list[Send]:
-    media_sends = [
-        Send(
+    media_sends = []
+    for attachment_index, attachment in enumerate(
+        state.get("attachments", [])
+    ):
+        if attachment.type not in MEDIA_AGENT_BY_TYPE:
+            continue
+
+        agent_input = {
+            "query": state["prompt"],
+            "attachment": attachment.model_dump(mode="json"),
+            "attachment_index": attachment_index,
+        }
+        media_sends.append(Send(
             MEDIA_AGENT_BY_TYPE[attachment.type],
-            {
-                "query": state["prompt"],
-                "attachment": attachment.model_dump(mode="json"),
-            },
-        )
-        for attachment in state.get("attachments", [])
-        if attachment.type in MEDIA_AGENT_BY_TYPE
-    ]
+            agent_input,
+        ))
+        if attachment.type == "image":
+            media_sends.append(Send(
+                "image_authenticity_agent",
+                agent_input,
+            ))
     if media_sends:
         return media_sends
 

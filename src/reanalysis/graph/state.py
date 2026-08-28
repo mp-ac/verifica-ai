@@ -10,6 +10,7 @@ from graph.state import (
     ModelUsage,
     SourceItem,
 )
+from image_authenticity import ImageAuthenticityAnalysis
 
 
 class ReanalysisState(TypedDict):
@@ -18,6 +19,10 @@ class ReanalysisState(TypedDict):
     attachments: list[Attachment]
     original_final_answer: FinalAnswerResult
     media_contexts: Annotated[list[AgentOutput], operator.add]
+    image_authenticity_analyses: Annotated[
+        list[ImageAuthenticityAnalysis],
+        operator.add,
+    ]
     youtube_central_claim: NotRequired[str]
     youtube_research_context: NotRequired[str]
     youtube_requires_clarification: NotRequired[bool]

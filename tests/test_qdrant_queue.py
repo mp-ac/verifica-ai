@@ -169,6 +169,7 @@ class QdrantQueueTest(unittest.TestCase):
                             "classification": None,
                             "is_classified": False,
                         },
+                        "image_authenticity_analyses": [],
                     },
                     "duplicate_check": {
                         "outcome": "match",

@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 from langchain_core.messages import AIMessage, HumanMessage
 
 from graph.state import FinalAnswerResult, ImageAnalysisResult
+from image_authenticity import ImageAuthenticityAnalysis
 
 
 class ImageAgentTest(unittest.TestCase):
@@ -123,6 +124,28 @@ class ImageAgentTest(unittest.TestCase):
                 }
             },
             {
+                "image_authenticity_agent": {
+                    "image_authenticity_analyses": [
+                        ImageAuthenticityAnalysis(
+                            attachment_index=0,
+                            status="completed",
+                            assessment="likely_ai_generated",
+                            confidence=0.8,
+                            signals=["Padrões visuais artificiais."],
+                            limitations=["Imagem recomprimida."],
+                        )
+                    ],
+                    "model_usage": [{
+                        "role": "image",
+                        "input_tokens": 80,
+                        "output_tokens": 20,
+                        "thinking_tokens": 0,
+                        "cached_input_tokens": 0,
+                        "total_tokens": 100,
+                    }],
+                }
+            },
+            {
                 "search_agent": {
                     "results": [],
                     "tools": ["get_links", "fetch_url"],
@@ -175,7 +198,11 @@ class ImageAgentTest(unittest.TestCase):
 
         self.assertEqual(
             result["execution"]["agents"],
-            ["image_agent", "search_agent"],
+            [
+                "image_agent",
+                "image_authenticity_agent",
+                "search_agent",
+            ],
         )
         self.assertIn(
             {
@@ -183,11 +210,11 @@ class ImageAgentTest(unittest.TestCase):
                 "provider": "google",
                 "model": "gemini-image-test",
                 "usage": {
-                    "input_tokens": 100,
-                    "output_tokens": 20,
+                    "input_tokens": 180,
+                    "output_tokens": 40,
                     "thinking_tokens": 5,
                     "cached_input_tokens": 0,
-                    "total_tokens": 120,
+                    "total_tokens": 220,
                 },
             },
             result["execution"]["models"],
@@ -209,6 +236,15 @@ class ImageAgentTest(unittest.TestCase):
             ["fetch_url", "get_links"],
         )
         self.assertEqual(result["attachments"][0]["type"], "image")
+        self.assertEqual(result["image_authenticity_analyses"], [{
+            "assessment": "likely_ai_generated",
+            "confidence": 0.8,
+            "signals": ["Padrões visuais artificiais."],
+            "limitations": ["Imagem recomprimida."],
+            "attachment_index": 0,
+            "status": "completed",
+            "method": "visual_model",
+        }])
         get_current_job.assert_called_once()
         get_final_results_queue.assert_not_called()
 

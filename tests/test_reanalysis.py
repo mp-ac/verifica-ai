@@ -13,6 +13,7 @@ from reanalysis.graph.nodes import (
     route_reanalysis,
 )
 from graph.state import Attachment, FinalAnswerResult
+from image_authenticity import ImageAuthenticityModelResult
 from reanalysis.schemas import PanelFinalResult, ReanalyzeRequest
 
 
@@ -299,8 +300,11 @@ class ReanalysisRoutingTest(unittest.TestCase):
             )
         ]))
 
-        self.assertEqual(len(sends), 1)
+        self.assertEqual(len(sends), 2)
         self.assertEqual(sends[0].node, "image_agent")
+        self.assertEqual(sends[1].node, "image_authenticity_agent")
+        self.assertEqual(sends[0].arg["attachment_index"], 0)
+        self.assertEqual(sends[1].arg["attachment_index"], 0)
 
     def test_routes_youtube_video_through_youtube_agent(self) -> None:
         sends = route_reanalysis(self._state([
@@ -623,12 +627,19 @@ class ReanalysisWorkflowTest(unittest.TestCase):
     @patch("reanalysis.graph.nodes.router_llm")
     @patch("agents.search_agent.agent.search_agent")
     @patch("agents.search_agent.agent.SEARCH_GOOGLE_SEARCH_ENABLED", False)
+    @patch(
+        "agents.image_authenticity_agent.load_prompt",
+        return_value="Prompt de autenticidade",
+    )
+    @patch("agents.image_authenticity_agent.image_llm")
     @patch("agents.image_agent.load_prompt", return_value="Prompt visual")
     @patch("agents.image_agent.image_llm")
     def test_reprocesses_image_before_search_and_cumulative_synthesis(
         self,
         image_llm: Mock,
         image_load_prompt: Mock,
+        authenticity_llm: Mock,
+        authenticity_load_prompt: Mock,
         search_agent: Mock,
         router_llm: Mock,
         synthesis_load_prompt: Mock,
@@ -647,6 +658,20 @@ class ReanalysisWorkflowTest(unittest.TestCase):
                 "input_tokens": 100,
                 "output_tokens": 20,
                 "total_tokens": 120,
+            }),
+            "parsing_error": None,
+        }
+        authenticity_llm.with_structured_output.return_value.invoke.return_value = {
+            "parsed": ImageAuthenticityModelResult(
+                assessment="likely_ai_generated",
+                confidence=0.7,
+                signals=["Padrões visuais artificiais."],
+                limitations=["Arquivo original indisponível."],
+            ),
+            "raw": AIMessage(content="", usage_metadata={
+                "input_tokens": 80,
+                "output_tokens": 20,
+                "total_tokens": 100,
             }),
             "parsing_error": None,
         }
@@ -679,6 +704,7 @@ class ReanalysisWorkflowTest(unittest.TestCase):
         })
 
         image_llm.with_structured_output.assert_called_once()
+        authenticity_llm.with_structured_output.assert_called_once()
         search_agent.invoke.assert_called_once()
         research_query = (
             search_agent.invoke.call_args.args[0]["messages"][0]["content"]
@@ -689,7 +715,9 @@ class ReanalysisWorkflowTest(unittest.TestCase):
             research_query,
         )
         self.assertEqual(state["final_answer"].classification, "enganoso")
+        self.assertEqual(len(state["image_authenticity_analyses"]), 1)
         image_load_prompt.assert_called_once()
+        authenticity_load_prompt.assert_called_once()
         synthesis_load_prompt.assert_called_once()
 
 
