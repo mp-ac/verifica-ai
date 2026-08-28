@@ -155,7 +155,7 @@ def prepare_human_response(_state: RouterState) -> dict:
     """Preserve a non-verifiable message for a human response in the panel."""
     return {
         "final_answer": FinalAnswerResult(
-            title="Resposta humana necessária",
+            title="Solicitação sem alegação factual para pesquisa",
             answer=(
                 "A mensagem não contém uma alegação factual para pesquisa "
                 "automática e requer avaliação e resposta humana."

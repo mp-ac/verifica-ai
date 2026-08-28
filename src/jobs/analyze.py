@@ -11,6 +11,7 @@ from jobs.execution_metadata import build_execution_metadata
 from jobs.result_dispatch import dispatch_completed_result
 from observability.langsmith import sanitized_langsmith_tracing
 from similarity.check import run_duplicate_check
+from similarity.query import build_duplicate_check_query
 from utils.attachments import normalize_attachments
 from utils.token_usage import TOKEN_USAGE_FIELDS, empty_token_usage
 
@@ -65,13 +66,6 @@ def _process_analyze_job(
     retry_attempt: int = 0,
 ) -> dict:
     started_at = perf_counter()
-    duplicate_check = run_duplicate_check(
-        query,
-        attachments or [],
-        task_id=task_id,
-        retry_attempt=retry_attempt,
-    )
-    duplicate_check_data = duplicate_check.to_summary().model_dump()
     normalized_attachments = normalize_attachments(
         query,
         attachments or [],
@@ -138,6 +132,13 @@ def _process_analyze_job(
     final_answer_data = (
         final_answer.model_dump() if final_answer is not None else None
     )
+    duplicate_check = run_duplicate_check(
+        build_duplicate_check_query(final_answer),
+        [],
+        task_id=task_id,
+        retry_attempt=retry_attempt,
+    )
+    duplicate_check_data = duplicate_check.to_summary().model_dump()
     execution = build_execution_metadata(
         started_at=started_at,
         usage_by_role=usage_by_role,

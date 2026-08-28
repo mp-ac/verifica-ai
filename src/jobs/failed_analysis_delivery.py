@@ -23,7 +23,7 @@ def _failure_result(job: Any, error: str) -> dict:
     """Build a panel-compatible pending item for a terminal analysis failure."""
     query, attachments, requester = _job_input(job)
     final_answer = FinalAnswerResult(
-        title="Resposta humana necessária",
+        title="A análise automatizada falhou",
         answer=(
             "A análise automatizada não pôde ser concluída. A mensagem foi "
             "preservada para avaliação e resposta humana."
