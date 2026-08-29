@@ -67,6 +67,7 @@ class ImageAgentTest(unittest.TestCase):
             context["result"],
         )
         self.assertEqual(context["source"], "image_agent")
+        self.assertEqual(result["image_factual_claims_detected"], [True])
         self.assertEqual(result["model_usage"], [{
             "role": "image",
             "input_tokens": 120,

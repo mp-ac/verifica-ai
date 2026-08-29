@@ -36,6 +36,74 @@ class AttachmentWorkflowTest(unittest.TestCase):
             ],
         )
 
+    @patch("graph.nodes.router_llm")
+    @patch("agents.search_agent.agent.search_agent")
+    @patch(
+        "agents.image_authenticity_agent.load_prompt",
+        return_value="Prompt de autenticidade",
+    )
+    @patch("agents.image_authenticity_agent.image_llm")
+    @patch("agents.image_agent.load_prompt", return_value="Prompt visual")
+    @patch("agents.image_agent.image_llm")
+    def test_routes_image_without_factual_claims_to_human_response(
+        self,
+        image_llm: Mock,
+        _image_load_prompt: Mock,
+        authenticity_llm: Mock,
+        _authenticity_load_prompt: Mock,
+        search_agent: Mock,
+        router_llm: Mock,
+    ) -> None:
+        from graph.workflow import workflow
+
+        image_llm.with_structured_output.return_value.invoke.return_value = {
+            "parsed": ImageAnalysisResult(
+                visible_text="",
+                visual_context="Fotografia sem texto ou alegação factual.",
+                claims=[],
+                research_query="",
+            ),
+            "raw": AIMessage(content="", usage_metadata={
+                "input_tokens": 50,
+                "output_tokens": 10,
+                "total_tokens": 60,
+            }),
+            "parsing_error": None,
+        }
+        authenticity_llm.with_structured_output.return_value.invoke.return_value = {
+            "parsed": ImageAuthenticityModelResult(
+                assessment="inconclusive",
+                confidence=None,
+                signals=[],
+                limitations=["Não há sinais visuais suficientes."],
+            ),
+            "raw": AIMessage(content="", usage_metadata={
+                "input_tokens": 50,
+                "output_tokens": 10,
+                "total_tokens": 60,
+            }),
+            "parsing_error": None,
+        }
+
+        state = workflow.invoke({
+            "query": "Esta imagem foi feita por IA?",
+            "attachments": [{
+                "type": "image",
+                "url": "https://example.com/imagem.jpg",
+                "origin": "payload",
+            }],
+        })
+
+        search_agent.invoke.assert_not_called()
+        router_llm.with_structured_output.assert_not_called()
+        self.assertTrue(state["human_response_required"])
+        self.assertIsNone(state["final_answer"].classification)
+        self.assertEqual(len(state["image_authenticity_analyses"]), 1)
+        self.assertIn(
+            "nenhuma alegação factual",
+            " ".join(state["debug_events"]).lower(),
+        )
+
     @patch("graph.nodes.load_prompt", return_value="Sintetize {query}")
     @patch("graph.nodes.router_llm")
     def test_grounded_sources_replace_router_generated_sources(

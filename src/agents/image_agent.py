@@ -65,6 +65,7 @@ def query_image(state: AgentInput) -> dict:
                 "result": formatted_analysis,
             }
         ],
+        "image_factual_claims_detected": [bool(response["parsed"].claims)],
         "model_usage": [{
             "role": "image",
             **get_token_usage([response["raw"]]),

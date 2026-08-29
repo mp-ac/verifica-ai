@@ -195,6 +195,27 @@ def prepare_search_query(state: RouterState) -> dict:
             ],
         }
 
+    attachments = state.get("attachments", [])
+    image_attachments = [
+        attachment
+        for attachment in attachments
+        if attachment.get("type") == "image"
+    ]
+    image_claims = state.get("image_factual_claims_detected", [])
+    if (
+        image_attachments
+        and len(image_attachments) == len(attachments)
+        and len(image_claims) == len(image_attachments)
+        and not any(image_claims)
+    ):
+        return {
+            "human_response_required": True,
+            "debug_events": [
+                "Pesquisa online dispensada porque nenhuma alegação factual "
+                "foi identificada nas imagens."
+            ],
+        }
+
     central_claim = state.get("youtube_central_claim")
     if central_claim:
         research_query = format_youtube_research_query(
@@ -228,6 +249,8 @@ def route_after_prepare_search(state: RouterState) -> str:
     """Skip research and synthesis when the user must clarify the video."""
     if state.get("final_answer") is not None:
         return "end"
+    if state.get("human_response_required"):
+        return "human_response"
     return "search_agent"
 
 

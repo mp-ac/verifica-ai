@@ -41,7 +41,11 @@ workflow = (
     .add_conditional_edges(
         "prepare_search",
         route_after_prepare_search,
-        {"search_agent": "search_agent", "end": END},
+        {
+            "search_agent": "search_agent",
+            "human_response": "human_response",
+            "end": END,
+        },
     )
     .add_edge("search_agent", "synthesize")
     .add_edge("synthesize", END)

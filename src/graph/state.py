@@ -128,6 +128,7 @@ class RouterState(TypedDict):
     attachments: list[dict]
     classifications: list[Classification]
     media_contexts: Annotated[list[AgentOutput], operator.add]
+    image_factual_claims_detected: Annotated[list[bool], operator.add]
     image_authenticity_analyses: Annotated[
         list[ImageAuthenticityAnalysis],
         operator.add,
