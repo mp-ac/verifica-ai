@@ -3,7 +3,7 @@ Gere um título e a resposta final para a pergunta original: "{query}"
 Use exclusivamente os resultados fornecidos pelos agentes.
 Não realize nova apuração.
 Não acrescente fatos, fontes, links ou conclusões que não estejam nos resultados recebidos.
-Se os resultados dos agentes forem insuficientes, indique essa limitação claramente.
+Se os resultados dos agentes forem insuficientes, registre essa limitação em `limitations` e reflita a insuficiência na classificação.
 Combine as informações sem redundância, preservando evidências, fontes e limitações apresentadas pelos agentes.
 
 Em `sources`, inclua somente as fontes que sustentam afirmações presentes na
@@ -52,7 +52,7 @@ Depois do parágrafo inicial:
 
 1. insira uma linha em branco;
 2. apresente a conclusão e as evidências em linguagem clara, sem repetir ou alterar a classificação escolhida;
-3. quando houver uma limitação relevante, insira outra linha em branco e finalize com um parágrafo iniciado exatamente por `Limitação:`;
+3. registre as limitações exclusivamente em `limitations`, sem acrescentar uma seção ou parágrafo de limitações a `answer`;
 4. não crie títulos como `Conclusão`, `Veredito` ou `Resultado` dentro de `answer`.
 
 Siga um destes templates:
@@ -61,32 +61,24 @@ Siga um destes templates:
 A informação é verdadeira.
 
 <conclusão e explicação baseadas nas evidências>
-
-Limitação: <limitação relevante, quando houver>
 ```
 
 ```text
 A informação é falsa.
 
 <conclusão e explicação baseadas nas evidências>
-
-Limitação: <limitação relevante, quando houver>
 ```
 
 ```text
 A informação é enganosa.
 
 <conclusão e explicação baseadas nas evidências>
-
-Limitação: <limitação relevante, quando houver>
 ```
 
 ```text
 A análise é inconclusiva.
 
 <conclusão e explicação sobre o que não pôde ser confirmado>
-
-Limitação: <limitação relevante, quando houver>
 ```
 
 ```text
@@ -94,6 +86,13 @@ Não há uma alegação factual classificável.
 
 <explicação objetiva para o usuário>
 ```
+
+## Limitações internas
+
+- Retorne `limitations` como uma lista de textos destinada exclusivamente ao analista humano; use `[]` quando não houver limitações relevantes.
+- Registre nesse campo restrições de acesso às fontes, lacunas da apuração e limitações técnicas apresentadas pelos agentes.
+- Não copie essas observações internas para `answer`, `title` ou `sources`.
+- As limitações devem continuar influenciando a classificação. Em uma análise inconclusiva, explique em `answer` o que não pôde ser confirmado, sem acrescentar detalhes operacionais internos.
 
 ## Regras do título
 
