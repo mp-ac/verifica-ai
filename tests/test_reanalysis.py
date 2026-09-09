@@ -63,10 +63,12 @@ class ReanalysisSchemaTest(unittest.TestCase):
         final_result = make_panel_final_result(
             attachments=None,
             sources=None,
+            limitations=None,
         )
 
         self.assertEqual(final_result.attachments, [])
         self.assertEqual(final_result.sources, [])
+        self.assertEqual(final_result.to_final_answer().limitations, [])
 
 
 class PanelIntegrationTest(unittest.TestCase):
@@ -249,7 +251,9 @@ class ReanalysisRoutingTest(unittest.TestCase):
             "query": "Consulta original",
             "prompt": "Pesquise o conteúdo representado na imagem.",
             "attachments": attachments or [],
-            "original_final_answer": make_panel_final_result().to_final_answer(),
+            "original_final_answer": make_panel_final_result(
+                limitations=["Documento original indisponível."],
+            ).to_final_answer(),
             "media_contexts": [],
             "results": [],
         }
@@ -258,6 +262,7 @@ class ReanalysisRoutingTest(unittest.TestCase):
         query = format_reanalysis_research_query(self._state())
 
         self.assertIn("<resultado_anterior>", query)
+        self.assertIn("Documento original indisponível.", query)
         self.assertIn(
             "A imagem foi produzida por inteligência artificial.",
             query,
@@ -428,6 +433,7 @@ class ReanalysisApiTest(unittest.IsolatedAsyncioTestCase):
             response.result.final_answer.classification,
             "enganoso",
         )
+        self.assertEqual(response.result.final_answer.limitations, [])
         self.assertEqual(response.execution.agents, ["search_agent"])
 
 
@@ -466,6 +472,7 @@ class ReanalysisJobTest(unittest.TestCase):
                         answer="A informação é enganosa.\n\nResposta ampliada.",
                         classification="enganoso",
                         sources=[],
+                        limitations=["Documento original indisponível."],
                     ),
                     "model_usage": [{
                         "role": "router",
@@ -493,6 +500,10 @@ class ReanalysisJobTest(unittest.TestCase):
         self.assertEqual(
             result["result"]["final_result_id"],
             str(FINAL_RESULT_ID),
+        )
+        self.assertEqual(
+            result["result"]["final_answer"]["limitations"],
+            ["Documento original indisponível."],
         )
         self.assertEqual(
             result["result"]["final_answer"]["classification"],
@@ -584,7 +595,9 @@ class ReanalysisSynthesisTest(unittest.TestCase):
             "query": "Consulta original",
             "prompt": "Analise também o conteúdo semântico.",
             "attachments": [],
-            "original_final_answer": make_panel_final_result().to_final_answer(),
+            "original_final_answer": make_panel_final_result(
+                limitations=["Documento original indisponível."],
+            ).to_final_answer(),
             "results": [{
                 "source": "search_agent",
                 "result": "A nova pesquisa encontrou contexto adicional.",
@@ -603,6 +616,7 @@ class ReanalysisSynthesisTest(unittest.TestCase):
             messages[1]["content"],
         )
         self.assertIn("contexto adicional", messages[1]["content"])
+        self.assertIn("Documento original indisponível.", messages[1]["content"])
         self.assertNotIn(
             "A imagem foi produzida por inteligência artificial.",
             messages[0]["content"],
@@ -675,7 +689,9 @@ class ReanalysisWorkflowTest(unittest.TestCase):
                 type="image",
                 url="https://example.com/imagem.jpg",
             )],
-            "original_final_answer": make_panel_final_result().to_final_answer(),
+            "original_final_answer": make_panel_final_result(
+                limitations=["Documento original indisponível."],
+            ).to_final_answer(),
         })
 
         image_llm.with_structured_output.assert_called_once()

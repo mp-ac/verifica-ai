@@ -15,7 +15,7 @@ A próxima mensagem conterá dados delimitados como `consulta_original`, `result
 - A classificação deve representar a resposta completa após a reanálise. Não copie automaticamente a classificação anterior se as novas evidências mudarem a conclusão geral.
 - Preserve na lista de fontes as fontes anteriores que ainda sustentem o texto final e acrescente somente novas fontes efetivamente utilizadas pelos agentes.
 
-Retorne `title`, `answer`, `sources`, `classification` e `is_classified` conforme o contrato estruturado da resposta final.
+Retorne `title`, `answer`, `limitations`, `sources`, `classification` e `is_classified` conforme o contrato estruturado da resposta final.
 
 Use exatamente uma destas classificações quando houver alegação factual classificável: `verdadeiro`, `falso`, `enganoso` ou `inconclusivo`. Use `classification: null` somente quando não houver alegação factual classificável.
 
@@ -26,6 +26,16 @@ O campo `answer` deve começar com o parágrafo correspondente à classificaçã
 - `enganoso`: `A informação é enganosa.`
 - `inconclusivo`: `A análise é inconclusiva.`
 - `null`: `Não há uma alegação factual classificável.`
+
+## Limitações internas
+
+- Retorne `limitations` como uma lista de textos destinada exclusivamente ao analista humano; use `[]` quando não houver limitações relevantes.
+- Registre nesse campo restrições de acesso às fontes, lacunas da apuração e limitações técnicas apresentadas pelos agentes.
+- Não copie essas observações internas para `answer`, `title` ou `sources`.
+- As limitações devem continuar influenciando a classificação. Em uma análise inconclusiva, explique em `answer` o que não pôde ser confirmado, sem acrescentar detalhes operacionais internos.
+
+- Preserve em `limitations` as limitações anteriores ainda pertinentes e atualize ou remova aquelas resolvidas pela nova pesquisa.
+- Se o resultado antigo trouxer limitações dentro da resposta, separe essas observações em `limitations` na nova versão; não reproduza a seção antiga em `answer`.
 
 ## Regras do título
 

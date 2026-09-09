@@ -32,6 +32,12 @@ def _format_sources(final_answer: FinalAnswerResult) -> str:
     )
 
 
+def _format_limitations(final_answer: FinalAnswerResult) -> str:
+    return "\n".join(
+        f"- {limitation}" for limitation in final_answer.limitations
+    ) or "- Nenhuma limitação registrada."
+
+
 def _format_attachments(state: ReanalysisState) -> str:
     attachments = state.get("attachments", [])
     if not attachments:
@@ -53,6 +59,7 @@ def format_reanalysis_research_query(state: ReanalysisState) -> str:
         f"Título: {original.title}",
         f"Classificação: {original.classification or 'null'}",
         f"Resposta:\n{original.answer}",
+        f"Limitações internas para o analista:\n{_format_limitations(original)}",
         f"Fontes:\n{_format_sources(original)}",
         "</resultado_anterior>",
         "<instrucao_do_analista>",
@@ -161,6 +168,7 @@ def _format_reanalysis_synthesis_input(
         f"Título: {original.title}",
         f"Classificação: {original.classification or 'null'}",
         f"Resposta:\n{original.answer}",
+        f"Limitações internas para o analista:\n{_format_limitations(original)}",
         f"Fontes:\n{_format_sources(original)}",
         "</resultado_anterior>",
         "<instrucao_do_analista>",

@@ -42,6 +42,7 @@ class PanelFinalResult(BaseModel):
     title: str | None = None
     attachments: list[Attachment] = Field(default_factory=list)
     final_result: str
+    limitations: list[str] = Field(default_factory=list)
     classification: ClassificationLabel | None = None
     sources: list[SourceItem] = Field(default_factory=list)
     has_human_review: bool = Field(
@@ -49,7 +50,7 @@ class PanelFinalResult(BaseModel):
         serialization_alias="is_classified",
     )
 
-    @field_validator("attachments", "sources", mode="before")
+    @field_validator("attachments", "sources", "limitations", mode="before")
     @classmethod
     def normalize_nullable_lists(cls, value: list | None) -> list:
         return value or []
@@ -58,6 +59,7 @@ class PanelFinalResult(BaseModel):
         return FinalAnswerResult(
             title=self.title or "",
             answer=self.final_result,
+            limitations=self.limitations,
             classification=self.classification,
             sources=self.sources,
         )

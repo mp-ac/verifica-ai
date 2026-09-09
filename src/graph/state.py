@@ -93,7 +93,19 @@ class FinalAnswerResult(BaseModel):
             "Núcleo curto e objetivo do título, sem prefixo de classificação"
         ),
     )
-    answer: str = Field(description="Resposta final consolidada para o usuário")
+    answer: str = Field(
+        description=(
+            "Resposta final para o público, sem seção de limitações ou "
+            "observações internas destinadas ao analista."
+        ),
+    )
+    limitations: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Limitações da apuração destinadas exclusivamente ao analista "
+            "humano. Não repetir em answer. Use [] quando não houver."
+        ),
+    )
     sources: list[SourceItem] = Field(
         default_factory=list,
         description="Fontes que foram usadas pelos agentes"
