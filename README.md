@@ -398,7 +398,7 @@ Antes de enfileirar o job, o VerificaAI consulta o resultado original em
 `FINAL_RESULTS_API_URL/{final_result_id}`. Resultados que já tenham classificação
 humana recebem HTTP `409` e não são enviados aos agentes.
 
-A reanálise utiliza a consulta, a resposta, a classificação, as fontes e os
+A reanálise utiliza a consulta, a resposta, as limitações internas, a classificação, as fontes e os
 anexos do `FinalResult` automático. As mídias originais são processadas novamente
 antes da pesquisa online. A síntese devolvida é uma nova resposta completa: ela
 preserva o conteúdo anterior que continua relevante e incorpora as evidências da
@@ -499,6 +499,7 @@ o `task_id` da execução:
     "attachments": [],
     "final_answer": {
       "answer": "Resposta final",
+      "limitations": [],
       "sources": [],
       "classification": "inconclusivo",
       "is_classified": true
@@ -591,3 +592,20 @@ Para permitir que o agente acesse URLs encontradas, você pode usar este projeto
 Este projeto está licenciado sob a `GNU Affero General Public License v3.0` (`AGPL-3.0`). Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
 
 Titular institucional do projeto: `Ministério Público do Estado do Acre`.
+
+### Limitações da apuração
+
+Nas análises e reanálises, `final_answer.limitations` contém uma lista de textos
+para o analista humano, separada de `final_answer.answer`, que contém o texto
+público. Quando não houver limitações, a lista será `[]`. Os prompts orientam a
+síntese a manter observações internas fora da resposta pública, sem alterar os
+critérios de classificação nem omitir a explicação de uma conclusão inconclusiva.
+
+O campo segue no payload de entrega ao painel e nas respostas de status. Na
+consulta do resultado original para reanálise, o campo esperado é
+`data.limitations`; valores ausentes ou nulos são tratados como `[]`.
+
+A persistência e a exibição exclusiva ao analista dependem da atualização do
+`verificaai-painel-api` e da interface de análise. O painel deve excluir esse campo
+das respostas destinadas ao site e das notificações. Esta alteração no Python
+não implementa esse controle de acesso nem modifica resultados antigos.
