@@ -18,6 +18,8 @@ COPY pyproject.toml /app/pyproject.toml
 COPY uv.lock /app/uv.lock
 RUN uv sync --frozen --no-dev --no-install-project
 
+ENV UV_NO_SYNC=1
+
 COPY ./src /app/src
 COPY ./prompts /app/prompts
 
