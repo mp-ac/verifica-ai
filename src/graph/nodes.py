@@ -1,4 +1,5 @@
 from langgraph.types import Send
+from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
 
 from config import ROUTER_CLASSIFICATION_PROMPT, ROUTER_SYNTHESIS_PROMPT
 from graph.state import ClassificationResult, FinalAnswerResult, RouterState, SourceItem
@@ -7,6 +8,7 @@ from graph.youtube import (
     format_youtube_research_query,
 )
 from llm_registry import router_llm
+from utils.attachments import extract_urls
 from utils.prompts_util import load_prompt
 from utils.sources import deduplicate_sources, select_allowed_sources
 from utils.title_formatting import format_classified_title
@@ -19,6 +21,15 @@ MEDIA_AGENT_BY_TYPE = {
     "video": "transcription_agent",
     "youtube": "youtube_agent",
 }
+_HTTP_URL_ADAPTER = TypeAdapter(AnyHttpUrl)
+
+
+def _normalized_url(url: str) -> str | None:
+    """Return the URL in the same form stored on validated attachments."""
+    try:
+        return str(_HTTP_URL_ADAPTER.validate_python(url))
+    except ValidationError:
+        return None
 
 
 def _format_input_for_search(
@@ -32,9 +43,16 @@ def _format_input_for_search(
     query = state["query"]
     attachments = state.get("attachments", [])
 
-    for attachment in attachments:
-        if attachment.get("type") in MEDIA_AGENT_BY_TYPE:
-            query = query.replace(str(attachment["url"]), "")
+    media_urls = {
+        str(attachment["url"])
+        for attachment in attachments
+        if attachment.get("type") in MEDIA_AGENT_BY_TYPE
+    }
+    for url in extract_urls(query):
+        if url in media_urls or _normalized_url(url) in media_urls:
+            query = query.replace(url, "")
+    for url in media_urls:
+        query = query.replace(url, "")
 
     parts = []
     if query.strip():
