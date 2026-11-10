@@ -224,6 +224,39 @@ class AttachmentWorkflowTest(unittest.TestCase):
         image_load_prompt.assert_called_once()
         router_load_prompt.assert_called_once()
 
+    def test_search_input_drops_media_urls_typed_differently_from_the_normalized_url(
+        self,
+    ) -> None:
+        from graph.nodes import _format_input_for_search
+        from utils.attachments import normalize_attachments
+
+        query = (
+            "Essa imagem é verdadeira? "
+            "https://www.gov.br/imagens/vacinação.jpg "
+            "e o áudio HTTPS://Example.com:443/audio.ogg "
+            "conforme https://example.com/noticia"
+        )
+        attachments = normalize_attachments(query, [])
+
+        search_input = _format_input_for_search({
+            "query": query,
+            "attachments": attachments,
+            "media_contexts": [],
+        })
+
+        self.assertNotIn("vacinação.jpg", search_input)
+        self.assertNotIn("audio.ogg", search_input)
+        self.assertIn(
+            "Mensagem original do usuário:\n"
+            "Essa imagem é verdadeira?  e o áudio  "
+            "conforme https://example.com/noticia",
+            search_input,
+        )
+        self.assertIn(
+            "Links enviados pelo usuário:\n- https://example.com/noticia",
+            search_input,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
