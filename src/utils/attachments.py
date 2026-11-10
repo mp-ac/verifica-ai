@@ -8,6 +8,7 @@ from graph.state import Attachment
 
 URL_PATTERN = re.compile(r'https?://[^\s<>"\']+', re.IGNORECASE)
 TRAILING_URL_PUNCTUATION = ".,;:!?)]}"
+CLOSING_TO_OPENING_BRACKET = {")": "(", "]": "[", "}": "{"}
 
 IMAGE_EXTENSIONS = {
     ".bmp", ".gif", ".heic", ".heif", ".jpeg", ".jpg", ".png",
@@ -67,9 +68,20 @@ def extract_urls(query: str | None) -> list[str]:
         return []
 
     return [
-        match.group(0).rstrip(TRAILING_URL_PUNCTUATION)
+        _strip_trailing_punctuation(match.group(0))
         for match in URL_PATTERN.finditer(query)
     ]
+
+
+def _strip_trailing_punctuation(url: str) -> str:
+    """Drop sentence punctuation while keeping balanced closing brackets."""
+    while url and url[-1] in TRAILING_URL_PUNCTUATION:
+        closing = url[-1]
+        opening = CLOSING_TO_OPENING_BRACKET.get(closing)
+        if opening is not None and url.count(opening) >= url.count(closing):
+            break
+        url = url[:-1]
+    return url
 
 
 def strip_urls(value: str) -> str:
