@@ -27,6 +27,19 @@ class AttachmentsTest(unittest.TestCase):
             "https://example.com/video.mp4",
         ])
 
+    def test_keeps_balanced_parentheses_at_the_end_of_urls(self) -> None:
+        urls = extract_urls(
+            "Isso confere? https://pt.wikipedia.org/wiki/Acre_(estado) "
+            "(fonte: https://example.com/noticia). "
+            "Veja também https://example.com/lista_(2024)."
+        )
+
+        self.assertEqual(urls, [
+            "https://pt.wikipedia.org/wiki/Acre_(estado)",
+            "https://example.com/noticia",
+            "https://example.com/lista_(2024)",
+        ])
+
     def test_strips_urls_from_semantic_query_text(self) -> None:
         self.assertEqual(
             strip_urls(
