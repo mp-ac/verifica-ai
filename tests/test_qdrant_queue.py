@@ -142,6 +142,7 @@ class QdrantQueueTest(unittest.TestCase):
                 {
                     "title": "Título da resposta",
                     "answer": "Resposta final",
+                    "limitations": [],
                     "sources": [],
                     "classification": None,
                     "is_classified": False,
@@ -165,6 +166,7 @@ class QdrantQueueTest(unittest.TestCase):
                         "final_answer": {
                             "title": "Título da resposta",
                             "answer": "Resposta final",
+                            "limitations": [],
                             "sources": [],
                             "classification": None,
                             "is_classified": False,
